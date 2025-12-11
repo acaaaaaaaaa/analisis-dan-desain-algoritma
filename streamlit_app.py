@@ -87,18 +87,8 @@ st.markdown("""
 class Task:
     """
     Class untuk merepresentasikan satu tugas/kegiatan mahasiswa.
-    
-    Attributes:
-        id: Unique identifier
-        name: Nama kegiatan
-        category: Kategori (Kuliah, Tugas, Ujian, Pribadi, dll)
-        start_time: Waktu mulai
-        duration: Durasi dalam jam
-        deadline: Batas waktu
-        priority: Prioritas (1-5, 5 = paling penting)
-        is_fixed: Apakah waktu sudah tetap (misal: jadwal kuliah)
     """
-    def _init_(self, id, name, category, start_time, duration, deadline, priority=3, is_fixed=False):
+    def __init__(self, id, name, category, start_time, duration, deadline, priority=3, is_fixed=False):
         self.id = id
         self.name = name
         self.category = category
