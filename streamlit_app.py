@@ -1033,39 +1033,58 @@ def main():
                     format_func=lambda x: f"Minggu {datetime.strptime(x, '%Y-%m-%d').strftime('%d %B %Y')}"
                 )
                 
-                # Tampilkan jadwal per hari
+                # Tampilkan jadwal dalam format tabel horizontal (Senin - Minggu)
                 week_tasks = tasks_by_week[selected_week]
                 week_start = datetime.strptime(selected_week, "%Y-%m-%d")
                 
+                # Buat 7 kolom untuk 7 hari
+                days_name = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+                cols = st.columns(7)
+                
                 for day_offset in range(7):
                     current_day = week_start + timedelta(days=day_offset)
-                    day_name = current_day.strftime("%A, %d %B %Y")
+                    day_tasks = [t for t in week_tasks if t.start_time.date() == current_day.date()]
                     
-                    st.markdown(f"### {day_name}")
-                    
-                    day_tasks = [t for t in week_tasks 
-                                if t.start_time.date() == current_day.date()]
-                    
-                    if len(day_tasks) == 0:
-                        st.info("📭 Tidak ada kegiatan")
-                    else:
-                        for task in sorted(day_tasks, key=lambda x: x.start_time):
-                            color = get_category_color(task.category)
-                            emoji = get_category_emoji(task.category)
-                            
-                            st.markdown(f"""
-                            <div style="background-color: {color}; color: white; padding: 15px; 
-                                        border-radius: 10px; margin: 10px 0;">
-                                <h4>{emoji} {task.name}</h4>
-                                <p><b>Waktu:</b> {task.start_time.strftime('%H:%M')} - 
-                                   {task.end_time.strftime('%H:%M')} ({task.duration} jam)</p>
-                                <p><b>Kategori:</b> {task.category} | 
-                                   <b>Prioritas:</b> {'⭐' * task.priority}</p>
-                                <p><b>Deadline:</b> {task.deadline.strftime('%d %B %Y')}</p>
+                    with cols[day_offset]:
+                        # Header hari
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%); 
+                                    color: white; padding: 8px; border-radius: 8px 8px 0 0; 
+                                    text-align: center; font-weight: bold; margin-bottom: 0;">
+                            {days_name[day_offset]}<br>
+                            <span style="font-size: 0.9em;">{current_day.strftime('%d/%m')}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Container untuk tasks
+                        if len(day_tasks) == 0:
+                            st.markdown("""
+                            <div style="background-color: #f8f9fa; padding: 15px; 
+                                        border: 1px solid #dee2e6; border-top: none;
+                                        border-radius: 0 0 8px 8px; min-height: 200px;
+                                        text-align: center; color: #999;">
+                                <br><br>📭<br>Tidak ada kegiatan
                             </div>
                             """, unsafe_allow_html=True)
-                    
-                    st.markdown("---")
+                        else:
+                            tasks_html = '<div style="background-color: white; padding: 8px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px; min-height: 200px;">'
+                            
+                            for task in sorted(day_tasks, key=lambda x: x.start_time):
+                                color = get_category_color(task.category)
+                                emoji = get_category_emoji(task.category)
+                                
+                                tasks_html += f"""
+                                <div style="background-color: {color}; color: white; 
+                                            padding: 6px; border-radius: 5px; margin: 5px 0;
+                                            font-size: 0.85em;">
+                                    <b>{emoji} {task.name[:20]}</b><br>
+                                    ⏰ {task.start_time.strftime('%H:%M')}-{task.end_time.strftime('%H:%M')}<br>
+                                    {'⭐' * task.priority}
+                                </div>
+                                """
+                            
+                            tasks_html += '</div>'
+                            st.markdown(tasks_html, unsafe_allow_html=True)
             
             else:  # Per Bulan
                 st.subheader("Kalender Bulanan")
@@ -1093,51 +1112,122 @@ def main():
                 # Buat kalender
                 cal = calendar.monthcalendar(year, month)
                 
-                st.markdown(f"### {calendar.month_name[month]} {year}")
+                st.markdown(f"""
+                <div style="text-align: center; background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%);
+                            color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">{calendar.month_name[month]} {year}</h2>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Header hari
-                cols = st.columns(7)
-                days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
-                for i, day in enumerate(days):
-                    cols[i].markdown(f"**{day}**")
+                # CSS untuk kalender yang lebih rapi dan efisien
+                st.markdown("""
+                <style>
+                    .cal-header {
+                        background: #FF8C00;
+                        color: white;
+                        padding: 10px;
+                        text-align: center;
+                        font-weight: bold;
+                        border: 1px solid #ddd;
+                        font-size: 0.9em;
+                    }
+                    .cal-day {
+                        background: white;
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                        min-height: 100px;
+                        max-height: 120px;
+                        overflow-y: auto;
+                        font-size: 0.8em;
+                    }
+                    .cal-day-empty {
+                        background: #f5f5f5;
+                        border: 1px solid #ddd;
+                        min-height: 100px;
+                    }
+                    .cal-day-number {
+                        font-weight: bold;
+                        font-size: 1.1em;
+                        color: #333;
+                        margin-bottom: 5px;
+                    }
+                    .cal-task {
+                        background: #FFE4B5;
+                        padding: 3px 5px;
+                        border-radius: 3px;
+                        margin: 2px 0;
+                        font-size: 0.75em;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .cal-task-more {
+                        color: #FF6347;
+                        font-weight: bold;
+                        font-size: 0.7em;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
                 
-                # Isi kalender
+                # Header hari dalam HTML table
+                days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+                
+                calendar_html = '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
+                
+                # Header row
+                calendar_html += '<tr>'
+                for day in days:
+                    calendar_html += f'<td class="cal-header">{day}</td>'
+                calendar_html += '</tr>'
+                
+                # Calendar weeks
                 for week in cal:
-                    cols = st.columns(7)
-                    for i, day in enumerate(week):
+                    calendar_html += '<tr>'
+                    for day in week:
                         if day == 0:
-                            cols[i].markdown("")
+                            calendar_html += '<td class="cal-day-empty"></td>'
                         else:
                             current_date = datetime(year, month, day).date()
-                            day_tasks = [t for t in month_tasks 
-                                        if t.start_time.date() == current_date]
+                            day_tasks = [t for t in month_tasks if t.start_time.date() == current_date]
                             
-                            if len(day_tasks) == 0:
-                                cols[i].markdown(f"""
-                                <div style="background-color: #f0f0f0; padding: 10px; 
-                                            border-radius: 5px; min-height: 100px;">
-                                    <b>{day}</b><br>
-                                    <small style="color: #999;">Kosong</small>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                tasks_html = ""
-                                for task in day_tasks[:3]:  # Max 3 tugas ditampilkan
-                                    emoji = get_category_emoji(task.category)
-                                    tasks_html += f"""
-                                    <small>{emoji} {task.name[:15]}...</small><br>
-                                    """
-                                
-                                if len(day_tasks) > 3:
-                                    tasks_html += f"<small>+{len(day_tasks)-3} lainnya</small>"
-                                
-                                cols[i].markdown(f"""
-                                <div style="background-color: #FFE4B5; padding: 10px; 
-                                            border-radius: 5px; min-height: 100px;">
-                                    <b>{day}</b><br>
-                                    {tasks_html}
-                                </div>
-                                """, unsafe_allow_html=True)
+                            calendar_html += '<td class="cal-day">'
+                            calendar_html += f'<div class="cal-day-number">{day}</div>'
+                            
+                            # Tampilkan max 3 tasks
+                            for i, task in enumerate(day_tasks[:3]):
+                                emoji = get_category_emoji(task.category)
+                                short_name = task.name[:12] + '...' if len(task.name) > 12 else task.name
+                                calendar_html += f'<div class="cal-task">{emoji} {short_name}</div>'
+                            
+                            if len(day_tasks) > 3:
+                                calendar_html += f'<div class="cal-task-more">+{len(day_tasks)-3} lagi</div>'
+                            
+                            calendar_html += '</td>'
+                    
+                    calendar_html += '</tr>'
+                
+                calendar_html += '</table>'
+                
+                st.markdown(calendar_html, unsafe_allow_html=True)
+                
+                # Legend kategori
+                st.markdown("---")
+                st.markdown("### 🎨 Legend Kategori:")
+                
+                categories = list(set([t.category for t in month_tasks]))
+                legend_cols = st.columns(min(4, len(categories)))
+                
+                for i, cat in enumerate(categories):
+                    with legend_cols[i % 4]:
+                        color = get_category_color(cat)
+                        emoji = get_category_emoji(cat)
+                        st.markdown(f"""
+                        <div style="display: inline-block; background-color: {color}; 
+                                    color: white; padding: 5px 12px; border-radius: 5px;
+                                    margin: 3px; font-size: 0.85em;">
+                            {emoji} {cat}
+                        </div>
+                        """, unsafe_allow_html=True)
     
     # ===================================================================================
     # MENU 4: EXPORT & NOTIFIKASI
