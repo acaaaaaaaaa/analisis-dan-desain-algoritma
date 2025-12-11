@@ -675,4 +675,483 @@ def main():
                                     f"{row['Tanggal Mulai']} {row['Jam Mulai']}", 
                                     "%Y-%m-%d %H:%M"
                                 )
-                                deadline_datetime = datetime.strptime(row['Deadline'], "%Y-%m
+                                deadline_datetime = datetime.strptime(row['Deadline'], "%Y-%m-%d")
+                                is_fixed_val = row.get('Fixed', False)
+                                if isinstance(is_fixed_val, str):
+                                    is_fixed_val = is_fixed_val.lower() == 'true'
+                                
+                                new_task = Task(
+                                    id=st.session_state.task_counter,
+                                    name=row['Nama'],
+                                    category=row['Kategori'],
+                                    start_time=start_datetime,
+                                    duration=float(row['Durasi']),
+                                    deadline=deadline_datetime,
+                                    priority=int(row['Prioritas']),
+                                    is_fixed=is_fixed_val
+                                )
+                                
+                                st.session_state.tasks.append(new_task)
+                                st.session_state.task_counter += 1
+                            
+                            st.success(f"✅ Berhasil import {len(df_upload)} tugas!")
+                            st.rerun()
+                
+                except Exception as e:
+                    st.error(f"❌ Error saat membaca CSV: {str(e)}")
+    
+    # ===================================================================================
+    # MENU 2: GENERATE JADWAL
+    # ===================================================================================
+    elif menu == "🤖 Generate Jadwal":
+        st.header("🤖 Generate Jadwal Otomatis")
+        
+        if len(st.session_state.tasks) == 0:
+            st.warning("⚠️ Belum ada tugas untuk dijadwalkan. Silakan tambah tugas terlebih dahulu.")
+        else:
+            st.info(f"📊 Total tugas yang akan dijadwalkan: {len(st.session_state.tasks)}")
+            
+            st.subheader("🎯 Pilih Algoritma Penjadwalan")
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                algorithm = st.selectbox(
+                    "Algoritma:",
+                    [
+                        "Genetic Algorithm (GA) - RECOMMENDED ⭐",
+                        "Greedy - Earliest Deadline First (EDF)",
+                        "Dynamic Programming (DP)",
+                        "Brute Force (untuk ≤ 10 tugas)"
+                    ]
+                )
+                
+                if "Genetic" in algorithm:
+                    st.markdown("""
+                    **🧬 Genetic Algorithm:**
+                    - ✅ Paling optimal untuk dataset besar
+                    - ✅ Dapat handle constraint kompleks
+                    - ✅ Multi-objektif optimization
+                    - ⚡ Kompleksitas: O(g × p × n)
+                    - 🎯 Cocok untuk: Semua ukuran dataset
+                    """)
+                elif "Greedy" in algorithm:
+                    st.markdown("""
+                    **⚡ Greedy EDF:**
+                    - ✅ Cepat dan efisien
+                    - ✅ Hasil cukup optimal
+                    - ✅ Intuitif (deadline terdekat dulu)
+                    - ⚡ Kompleksitas: O(n log n)
+                    - 🎯 Cocok untuk: Dataset sedang-besar
+                    """)
+                elif "Dynamic" in algorithm:
+                    st.markdown("""
+                    **🎲 Dynamic Programming:**
+                    - ✅ Optimal secara matematis
+                    - ✅ Weighted interval scheduling
+                    - ⚠️ Lebih lambat dari Greedy
+                    - ⚡ Kompleksitas: O(n²)
+                    - 🎯 Cocok untuk: Optimasi maksimum value
+                    """)
+                else:
+                    st.markdown("""
+                    **🔨 Brute Force:**
+                    - ✅ Mencoba semua kemungkinan
+                    - ✅ Hasil optimal (jika selesai)
+                    - ⚠️ SANGAT LAMBAT untuk > 10 tugas
+                    - ⚡ Kompleksitas: O(n!)
+                    - 🎯 Cocok untuk: Dataset sangat kecil
+                    """)
+            
+            with col2:
+                start_date = st.date_input("Mulai dari:", datetime.now())
+                days_range = st.number_input("Rentang (hari):", 1, 90, 14)
+                end_date = start_date + timedelta(days=days_range)
+            
+            if st.button("🚀 Generate Jadwal Optimal", type="primary", use_container_width=True):
+                with st.spinner("⏳ Sedang mengoptimalkan jadwal... Mohon tunggu."):
+                    start_datetime = datetime.combine(start_date, datetime.min.time())
+                    end_datetime = datetime.combine(end_date, datetime.max.time())
+                    
+                    if "Genetic" in algorithm:
+                        scheduled = genetic_algorithm_scheduling(
+                            st.session_state.tasks, start_datetime, end_datetime
+                        )
+                        st.session_state.algorithm_used = "Genetic Algorithm"
+                    elif "Greedy" in algorithm:
+                        scheduled = greedy_edf_scheduling(
+                            st.session_state.tasks, start_datetime, end_datetime
+                        )
+                        st.session_state.algorithm_used = "Greedy EDF"
+                    elif "Dynamic" in algorithm:
+                        scheduled = dynamic_programming_scheduling(
+                            st.session_state.tasks, start_datetime, end_datetime
+                        )
+                        st.session_state.algorithm_used = "Dynamic Programming"
+                    else:
+                        scheduled = brute_force_scheduling(
+                            st.session_state.tasks, start_datetime, end_datetime
+                        )
+                        st.session_state.algorithm_used = "Brute Force"
+                    
+                    st.session_state.scheduled_tasks = scheduled
+                    
+                    stats = calculate_statistics(scheduled, start_datetime, end_datetime)
+                    
+                    st.success("✅ Jadwal berhasil di-generate!")
+                    
+                    st.subheader("📊 Statistik Jadwal")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("Total Tugas", stats['total_tasks'])
+                    col2.metric("Total Jam", f"{stats['total_hours']:.1f}")
+                    col3.metric("Jam Kosong", f"{stats['free_hours']:.1f}")
+                    col4.metric("Konflik", stats['conflicts'], 
+                               delta=None if stats['conflicts'] == 0 else "⚠️")
+                    
+                    col5, col6 = st.columns(2)
+                    col5.metric("✅ Tepat Waktu", stats['on_time_tasks'])
+                    col6.metric("⚠️ Terlambat", stats['late_tasks'],
+                               delta=None if stats['late_tasks'] == 0 else "!")
+                    
+                    if stats['conflicts'] > 0:
+                        st.warning(f"⚠️ Ditemukan {stats['conflicts']} konflik waktu. Pertimbangkan untuk menyesuaikan durasi atau deadline.")
+    
+    # ===================================================================================
+    # MENU 3: LIHAT JADWAL
+    # ===================================================================================
+    elif menu == "📊 Lihat Jadwal":
+        st.header("📊 Visualisasi Jadwal")
+        
+        if len(st.session_state.scheduled_tasks) == 0:
+            st.warning("⚠️ Belum ada jadwal yang di-generate. Silakan generate jadwal terlebih dahulu.")
+        else:
+            st.info(f"🤖 Algoritma yang digunakan: **{st.session_state.algorithm_used}**")
+            
+            view_type = st.radio(
+                "Pilih Tampilan:",
+                ["📅 Per Minggu", "📆 Per Bulan"],
+                horizontal=True
+            )
+            
+            if view_type == "📅 Per Minggu":
+                st.subheader("Jadwal Mingguan")
+                
+                tasks_by_week = {}
+                for task in st.session_state.scheduled_tasks:
+                    week_start = task.start_time - timedelta(days=task.start_time.weekday())
+                    week_key = week_start.strftime("%Y-%m-%d")
+                    
+                    if week_key not in tasks_by_week:
+                        tasks_by_week[week_key] = []
+                    tasks_by_week[week_key].append(task)
+                
+                selected_week = st.selectbox(
+                    "Pilih Minggu:",
+                    options=sorted(tasks_by_week.keys()),
+                    format_func=lambda x: f"Minggu {datetime.strptime(x, '%Y-%m-%d').strftime('%d %B %Y')}"
+                )
+                
+                week_tasks = tasks_by_week[selected_week]
+                week_start = datetime.strptime(selected_week, "%Y-%m-%d")
+                
+                days_name = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+                cols = st.columns(7)
+                
+                for day_offset in range(7):
+                    current_day = week_start + timedelta(days=day_offset)
+                    day_tasks = [t for t in week_tasks if t.start_time.date() == current_day.date()]
+                    
+                    with cols[day_offset]:
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%); 
+                                    color: white; padding: 8px; border-radius: 8px 8px 0 0; 
+                                    text-align: center; font-weight: bold; margin-bottom: 0;">
+                            {days_name[day_offset]}<br>
+                            <span style="font-size: 0.9em;">{current_day.strftime('%d/%m')}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        container_style = """
+                        <div style="background-color: white; padding: 8px; 
+                                    border: 1px solid #dee2e6; border-top: none; 
+                                    border-radius: 0 0 8px 8px; min-height: 200px; 
+                                    max-height: 400px; overflow-y: auto;">
+                        """
+                        
+                        if len(day_tasks) == 0:
+                            st.markdown(container_style + """
+                                <div style="text-align: center; color: #999; padding: 50px 0;">
+                                    📭<br>Tidak ada kegiatan
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            tasks_html = container_style
+                            
+                            for task in sorted(day_tasks, key=lambda x: x.start_time):
+                                color = get_category_color(task.category)
+                                emoji = get_category_emoji(task.category)
+                                task_name = task.name[:15] + '...' if len(task.name) > 15 else task.name
+                                
+                                tasks_html += f"""
+                                <div style="background-color: {color}; color: white; 
+                                            padding: 8px; border-radius: 5px; margin: 5px 0;
+                                            font-size: 0.8em; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">
+                                        {emoji} {task_name}
+                                    </div>
+                                    <div style="font-size: 0.9em;">
+                                        ⏰ {task.start_time.strftime('%H:%M')}-{task.end_time.strftime('%H:%M')}
+                                    </div>
+                                    <div style="margin-top: 2px;">
+                                        {'⭐' * task.priority}
+                                    </div>
+                                </div>
+                                """
+                            
+                            tasks_html += '</div>'
+                            st.markdown(tasks_html, unsafe_allow_html=True)
+            
+            else:  # Per Bulan
+                st.subheader("Kalender Bulanan")
+                
+                tasks_by_month = {}
+                for task in st.session_state.scheduled_tasks:
+                    month_key = task.start_time.strftime("%Y-%m")
+                    
+                    if month_key not in tasks_by_month:
+                        tasks_by_month[month_key] = []
+                    tasks_by_month[month_key].append(task)
+                
+                selected_month = st.selectbox(
+                    "Pilih Bulan:",
+                    options=sorted(tasks_by_month.keys()),
+                    format_func=lambda x: datetime.strptime(x, "%Y-%m").strftime("%B %Y")
+                )
+                
+                year, month = map(int, selected_month.split('-'))
+                month_tasks = tasks_by_month[selected_month]
+                
+                st.markdown(f"""
+                <div style="text-align: center; background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%);
+                            color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">{calendar.month_name[month]} {year}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("""
+                <style>
+                    .cal-header {
+                        background: #FF8C00;
+                        color: white;
+                        padding: 10px;
+                        text-align: center;
+                        font-weight: bold;
+                        border: 1px solid #ddd;
+                        font-size: 0.9em;
+                    }
+                    .cal-day {
+                        background: white;
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                        min-height: 120px;
+                        max-height: 150px;
+                        overflow-y: auto;
+                        vertical-align: top;
+                    }
+                    .cal-day-empty {
+                        background: #f5f5f5;
+                        border: 1px solid #ddd;
+                        min-height: 120px;
+                    }
+                    .cal-day-number {
+                        font-weight: bold;
+                        font-size: 1.1em;
+                        color: #333;
+                        margin-bottom: 5px;
+                        display: block;
+                    }
+                    .cal-task {
+                        background: linear-gradient(135deg, #FFE4B5 0%, #FFDAB9 100%);
+                        padding: 4px 6px;
+                        border-radius: 4px;
+                        margin: 3px 0;
+                        font-size: 0.7em;
+                        display: block;
+                        border-left: 3px solid #FF8C00;
+                    }
+                    .cal-task-more {
+                        color: #FF6347;
+                        font-weight: bold;
+                        font-size: 0.75em;
+                        margin-top: 5px;
+                        display: block;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+                cal = calendar.monthcalendar(year, month)
+                
+                calendar_html = '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
+                
+                calendar_html += '<tr>'
+                for day in days:
+                    calendar_html += f'<td class="cal-header">{day}</td>'
+                calendar_html += '</tr>'
+                
+                for week in cal:
+                    calendar_html += '<tr>'
+                    for day in week:
+                        if day == 0:
+                            calendar_html += '<td class="cal-day-empty"></td>'
+                        else:
+                            current_date = datetime(year, month, day).date()
+                            day_tasks = [t for t in month_tasks if t.start_time.date() == current_date]
+                            
+                            calendar_html += '<td class="cal-day">'
+                            calendar_html += f'<span class="cal-day-number">{day}</span>'
+                            
+                            for i, task in enumerate(day_tasks[:3]):
+                                emoji = get_category_emoji(task.category)
+                                short_name = task.name[:10] + '...' if len(task.name) > 10 else task.name
+                                time_str = task.start_time.strftime('%H:%M')
+                                calendar_html += f'<span class="cal-task">{emoji} {short_name} ({time_str})</span>'
+                            
+                            if len(day_tasks) > 3:
+                                calendar_html += f'<span class="cal-task-more">+{len(day_tasks)-3} lainnya</span>'
+                            
+                            calendar_html += '</td>'
+                    
+                    calendar_html += '</tr>'
+                
+                calendar_html += '</table>'
+                
+                st.markdown(calendar_html, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                st.markdown("### 🎨 Legend Kategori:")
+                
+                categories = list(set([t.category for t in month_tasks]))
+                legend_cols = st.columns(min(4, len(categories)))
+                
+                for i, cat in enumerate(categories):
+                    with legend_cols[i % 4]:
+                        color = get_category_color(cat)
+                        emoji = get_category_emoji(cat)
+                        st.markdown(f"""
+                        <div style="display: inline-block; background-color: {color}; 
+                                    color: white; padding: 5px 12px; border-radius: 5px;
+                                    margin: 3px; font-size: 0.85em;">
+                            {emoji} {cat}
+                        </div>
+                        """, unsafe_allow_html=True)
+    
+    # ===================================================================================
+    # MENU 4: EXPORT & NOTIFIKASI
+    # ===================================================================================
+    elif menu == "📥 Export & Notifikasi":
+        st.header("📥 Export Jadwal & Notifikasi")
+        
+        if len(st.session_state.scheduled_tasks) == 0:
+            st.warning("⚠️ Belum ada jadwal yang di-generate.")
+        else:
+            st.subheader("💾 Export Jadwal")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                csv_data = export_to_csv(st.session_state.scheduled_tasks)
+                st.download_button(
+                    label="📄 Download CSV",
+                    data=csv_data,
+                    file_name=f"jadwal_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            
+            with col2:
+                st.info("📑 Export PDF: Gunakan Print to PDF dari browser Anda pada halaman 'Lihat Jadwal'")
+            
+            st.markdown("---")
+            
+            st.subheader("🔔 Notifikasi Deadline Mendekat")
+            
+            days_threshold = st.slider("Tampilkan deadline dalam berapa hari ke depan?", 1, 14, 3)
+            
+            upcoming = check_upcoming_deadlines(st.session_state.scheduled_tasks, days_threshold)
+            
+            if len(upcoming) == 0:
+                st.success("✅ Tidak ada deadline mendekat dalam waktu dekat!")
+            else:
+                st.warning(f"⚠️ Ada {len(upcoming)} tugas dengan deadline mendekat!")
+                
+                for task in sorted(upcoming, key=lambda x: x.deadline):
+                    days_left = (task.deadline - datetime.now()).days
+                    emoji = get_category_emoji(task.category)
+                    
+                    urgency = "🔴 URGENT!" if days_left <= 1 else "🟡 Segera" if days_left <= 2 else "🟢 Persiapan"
+                    
+                    st.markdown(f"""
+                    <div class="deadline-urgent" style="padding: 15px; margin: 10px 0; border-radius: 10px;">
+                        <h4>{urgency} {emoji} {task.name}</h4>
+                        <p><b>Deadline:</b> {task.deadline.strftime('%d %B %Y %H:%M')}</p>
+                        <p><b>Sisa waktu:</b> {days_left} hari</p>
+                        <p><b>Prioritas:</b> {'⭐' * task.priority}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            st.subheader("⏭️ Kegiatan Selanjutnya")
+            
+            now = datetime.now()
+            next_tasks = [t for t in st.session_state.scheduled_tasks if t.start_time > now]
+            next_tasks.sort(key=lambda x: x.start_time)
+            
+            if len(next_tasks) == 0:
+                st.info("📭 Tidak ada kegiatan terjadwal selanjutnya")
+            else:
+                next_task = next_tasks[0]
+                time_until = next_task.start_time - now
+                hours_until = time_until.total_seconds() / 3600
+                
+                emoji = get_category_emoji(next_task.category)
+                color = get_category_color(next_task.category)
+                
+                st.markdown(f"""
+                <div style="background-color: {color}; color: white; padding: 20px; 
+                            border-radius: 15px; text-align: center;">
+                    <h2>{emoji} {next_task.name}</h2>
+                    <h3>⏰ {next_task.start_time.strftime('%A, %d %B %Y')}</h3>
+                    <h3>🕐 {next_task.start_time.strftime('%H:%M')} - {next_task.end_time.strftime('%H:%M')}</h3>
+                    <p style="font-size: 18px;">
+                        <b>Dimulai dalam: {int(hours_until)} jam {int((hours_until % 1) * 60)} menit</b>
+                    </p>
+                    <p><b>Durasi:</b> {next_task.duration} jam | <b>Prioritas:</b> {'⭐' * next_task.priority}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if len(next_tasks) > 1:
+                    st.subheader("📋 3 Kegiatan Berikutnya:")
+                    for i, task in enumerate(next_tasks[1:4], 1):
+                        emoji = get_category_emoji(task.category)
+                        st.markdown(f"""
+                        **{i}. {emoji} {task.name}**  
+                        📅 {task.start_time.strftime('%d %B %Y, %H:%M')} | 
+                        ⏱️ {task.duration} jam | 
+                        {'⭐' * task.priority}
+                        """)
+    
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #888; padding: 20px;">
+        <p>📚 Aplikasi Penjadwalan Mahasiswa v1.1 - FIXED</p>
+        <p>Dibuat dengan ❤️ menggunakan Streamlit & Color Psychology</p>
+        <p><small>💡 Tips: Generate ulang jadwal dengan algoritma berbeda untuk hasil optimal!</small></p>
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
