@@ -98,7 +98,8 @@ class Task:
         priority: Prioritas (1-5, 5 = paling penting)
         is_fixed: Apakah waktu sudah tetap (misal: jadwal kuliah)
     """
-    def _init_(self, id, name, category, start_time, duration, deadline, priority=3, is_fixed=False):
+    # Perbaikan: Mengubah _init_ menjadi __init__
+    def __init__(self, id, name, category, start_time, duration, deadline, priority=3, is_fixed=False):
         self.id = id
         self.name = name
         self.category = category
@@ -117,7 +118,8 @@ class Task:
             'Kategori': self.category,
             'Waktu Mulai': self.start_time.strftime('%Y-%m-%d %H:%M'),
             'Durasi (jam)': self.duration,
-            'Deadline': self.deadline.strftime('%Y-%m-%d'),
+            # Deadline harus di-format sebagai datetime.date untuk menghindari error
+            'Deadline': self.deadline.strftime('%Y-%m-%d'), 
             'Prioritas': self.priority,
             'Fixed': self.is_fixed
         }
@@ -146,21 +148,7 @@ def brute_force_scheduling(tasks: List[Task], start_date: datetime, end_date: da
     """
     Algoritma Brute Force: mencoba semua kemungkinan kombinasi jadwal.
     
-    Cara kerja:
-    1. Generate semua permutasi urutan tugas
-    2. Untuk setiap permutasi, jadwalkan secara sekuensial
-    3. Pilih jadwal dengan total waktu tunggu terkecil
-    
     Kompleksitas: O(n!) - sangat lambat untuk n > 10
-    Cocok untuk: dataset kecil (< 10 tugas)
-    
-    Args:
-        tasks: List of Task objects
-        start_date: Tanggal mulai penjadwalan
-        end_date: Tanggal akhir penjadwalan
-    
-    Returns:
-        List of scheduled Task objects
     """
     if len(tasks) == 0:
         return []
@@ -170,7 +158,7 @@ def brute_force_scheduling(tasks: List[Task], start_date: datetime, end_date: da
     flexible_tasks = [t for t in tasks if not t.is_fixed]
     
     if len(flexible_tasks) > 10:
-        st.warning("⚠ Brute Force tidak efisien untuk > 10 tugas flexible. Menggunakan sample.")
+        st.warning("⚠ Brute Force tidak efisien untuk > 10 tugas flexible. Menggunakan sample 10 tugas pertama.")
         flexible_tasks = flexible_tasks[:10]
     
     best_schedule = None
@@ -189,6 +177,8 @@ def brute_force_scheduling(tasks: List[Task], start_date: datetime, end_date: da
                 current_time += timedelta(hours=1)
             
             # Jadwalkan tugas
+            # Hati-hati: Di sini kita membuat objek Task baru,
+            # pastikan properti end_time ikut terupdate secara otomatis (sudah di-handle oleh __init__)
             new_task = Task(
                 task.id, task.name, task.category,
                 current_time, task.duration, task.deadline,
@@ -216,22 +206,7 @@ def greedy_edf_scheduling(tasks: List[Task], start_date: datetime, end_date: dat
     """
     Algoritma Greedy - Earliest Deadline First (EDF)
     
-    Cara kerja:
-    1. Urutkan tugas berdasarkan deadline (paling dekat dulu)
-    2. Jadwalkan secara sekuensial dari waktu paling awal tersedia
-    3. Skip waktu yang sudah dipakai tugas fixed
-    
-    Kompleksitas: O(n log n) untuk sorting + O(n) untuk scheduling = O(n log n)
-    Cocok untuk: dataset sedang hingga besar
-    Kelebihan: Cepat, intuitif, hasil cukup optimal
-    
-    Args:
-        tasks: List of Task objects
-        start_date: Tanggal mulai penjadwalan
-        end_date: Tanggal akhir penjadwalan
-    
-    Returns:
-        List of scheduled Task objects
+    Kompleksitas: O(n log n)
     """
     if len(tasks) == 0:
         return []
@@ -253,16 +228,25 @@ def greedy_edf_scheduling(tasks: List[Task], start_date: datetime, end_date: dat
             conflict = False
             proposed_end = current_time + timedelta(hours=task.duration)
             
+            # Periksa konflik dengan SEMUA tugas yang sudah dijadwalkan (termasuk fixed)
             for scheduled_task in scheduled:
                 if (current_time < scheduled_task.end_time and 
                     proposed_end > scheduled_task.start_time):
                     conflict = True
+                    # Majukan current_time ke waktu selesai task yang konflik
                     current_time = scheduled_task.end_time
                     break
             
             if not conflict:
                 break
-        
+            
+            # Tambahkan jeda waktu minimal 1 menit
+            current_time += timedelta(minutes=1) 
+    
+        # Pastikan tidak melewati batas akhir penjadwalan
+        if current_time + timedelta(hours=task.duration) > end_date:
+            continue # Lewati tugas jika tidak bisa dijadwalkan dalam batas waktu
+            
         # Jadwalkan tugas di waktu yang ditemukan
         new_task = Task(
             task.id, task.name, task.category,
@@ -279,24 +263,9 @@ def greedy_edf_scheduling(tasks: List[Task], start_date: datetime, end_date: dat
 # ===================================================================================
 def dynamic_programming_scheduling(tasks: List[Task], start_date: datetime, end_date: datetime) -> List[Task]:
     """
-    Algoritma Dynamic Programming untuk Weighted Interval Scheduling
+    Algoritma Dynamic Programming untuk Weighted Interval Scheduling (Perlu asumsi start_time tugas flexible)
     
-    Cara kerja:
-    1. Urutkan tugas berdasarkan end time
-    2. Untuk setiap tugas, hitung nilai optimal jika tugas diambil atau tidak
-    3. Backtrack untuk menemukan kombinasi tugas optimal
-    
-    Kompleksitas: O(n²) untuk mencari kompatibilitas + O(n) untuk DP = O(n²)
-    Cocok untuk: optimasi maksimum value dengan constraint waktu
-    Kelebihan: Hasil optimal secara matematis untuk weighted scheduling
-    
-    Args:
-        tasks: List of Task objects
-        start_date: Tanggal mulai penjadwalan
-        end_date: Tanggal akhir penjadwalan
-    
-    Returns:
-        List of scheduled Task objects
+    Kompleksitas: O(n²)
     """
     if len(tasks) == 0:
         return []
@@ -308,28 +277,28 @@ def dynamic_programming_scheduling(tasks: List[Task], start_date: datetime, end_
     if len(flexible_tasks) == 0:
         return fixed_tasks
     
-    # Assign start time sementara untuk sorting
-    current_time = start_date
-    for task in flexible_tasks:
-        task.start_time = current_time
-        task.end_time = current_time + timedelta(hours=task.duration)
-        current_time = task.end_time
+    # *Modifikasi*: Untuk DP interval scheduling, tugas harus memiliki waktu mulai/selesai yang jelas
+    # Kita menggunakan Greedy EDF untuk memberikan *start time* awal yang realistis pada tugas flexible.
+    temp_scheduled = greedy_edf_scheduling(flexible_tasks, start_date, end_date)
     
     # Sort berdasarkan end time
-    flexible_tasks.sort(key=lambda x: x.end_time)
-    n = len(flexible_tasks)
+    temp_scheduled.sort(key=lambda x: x.end_time)
     
-    # Hitung weight (value) setiap tugas: prioritas * (1 - keterlambatan)
+    n = len(temp_scheduled)
+    
+    # Hitung weight (value) setiap tugas: prioritas * (1 + bonus_karena_waktu_luang_sebelum_deadline)
     weights = []
-    for task in flexible_tasks:
-        delay_factor = max(0, 1 - (task.end_time - task.deadline).days / 7)
-        weight = task.priority * delay_factor
+    for task in temp_scheduled:
+        time_to_deadline = (task.deadline - task.end_time).total_seconds() / 3600
+        # Bobot lebih tinggi jika tugas diselesaikan jauh dari deadline
+        weight = task.priority * (1 + max(0, time_to_deadline / (24*7))) 
         weights.append(weight)
     
     # Cari tugas kompatibel terakhir untuk setiap tugas
     def find_latest_compatible(index):
+        # Cari tugas j < index yang end_time-nya <= start_time tugas index
         for j in range(index - 1, -1, -1):
-            if flexible_tasks[j].end_time <= flexible_tasks[index].start_time:
+            if temp_scheduled[j].end_time <= temp_scheduled[index].start_time:
                 return j
         return -1
     
@@ -354,26 +323,28 @@ def dynamic_programming_scheduling(tasks: List[Task], start_date: datetime, end_
     i = n - 1
     while i >= 0:
         if i == 0:
-            if dp[i] > 0:
-                selected.append(flexible_tasks[i])
+            if dp[i] > 0: # Hanya ambil jika bobot positif
+                selected.append(temp_scheduled[i])
             break
         
-        # Jika nilai dengan include > exclude, berarti tugas i dipilih
+        # Hitung ulang nilai include dan exclude untuk pengambilan keputusan
         latest_compatible = find_latest_compatible(i)
-        include = weights[i] + (dp[latest_compatible] if latest_compatible != -1 else 0)
-        exclude = dp[i - 1]
+        include_val = weights[i] + (dp[latest_compatible] if latest_compatible != -1 else 0)
+        exclude_val = dp[i - 1]
         
-        if include > exclude:
-            selected.append(flexible_tasks[i])
-            i = latest_compatible
+        if include_val >= exclude_val:
+            selected.append(temp_scheduled[i])
+            i = latest_compatible if latest_compatible != -1 else -1 # Pindah ke tugas kompatibel terakhir
         else:
             i -= 1
     
     # Reverse karena backtrack dari belakang
     selected.reverse()
     
-    # Gabungkan dengan fixed tasks dan re-schedule untuk menghindari konflik
+    # Gabungkan dengan fixed tasks
     all_tasks = fixed_tasks + selected
+    
+    # Final check and re-sort
     all_tasks.sort(key=lambda x: x.start_time)
     
     return all_tasks
@@ -386,27 +357,7 @@ def genetic_algorithm_scheduling(tasks: List[Task], start_date: datetime, end_da
     """
     Algoritma Genetika untuk Optimasi Penjadwalan
     
-    Cara kerja:
-    1. Inisialisasi populasi jadwal random
-    2. Evaluasi fitness setiap jadwal (minimize konflik, deadline miss, maximize priority)
-    3. Seleksi jadwal terbaik (tournament selection)
-    4. Crossover (combine 2 jadwal parent)
-    5. Mutasi (random change untuk eksplorasi)
-    6. Repeat untuk beberapa generasi
-    
-    Kompleksitas: O(g * p * n) dimana g=generasi, p=populasi, n=tugas
-    Cocok untuk: dataset besar, optimasi multi-objektif
-    Kelebihan: Hasil sangat optimal, dapat handle constraint kompleks
-    
-    Args:
-        tasks: List of Task objects
-        start_date: Tanggal mulai penjadwalan
-        end_date: Tanggal akhir penjadwalan
-        population_size: Ukuran populasi per generasi
-        generations: Jumlah iterasi evolusi
-    
-    Returns:
-        List of scheduled Task objects
+    Kompleksitas: O(g * p * n)
     """
     if len(tasks) == 0:
         return []
@@ -417,11 +368,11 @@ def genetic_algorithm_scheduling(tasks: List[Task], start_date: datetime, end_da
     if len(flexible_tasks) == 0:
         return fixed_tasks
     
-    # Fungsi fitness: semakin kecil semakin baik
+    # Fungsi fitness: semakin kecil (cost) semakin baik
     def calculate_fitness(schedule):
         fitness = 0
         
-        # Penalty untuk konflik waktu
+        # Penalty 1: Konflik waktu (harus diminimalisir)
         for i, task1 in enumerate(schedule):
             for task2 in schedule[i+1:]:
                 if (task1.start_time < task2.end_time and 
@@ -429,13 +380,13 @@ def genetic_algorithm_scheduling(tasks: List[Task], start_date: datetime, end_da
                     overlap = min(task1.end_time, task2.end_time) - max(task1.start_time, task2.start_time)
                     fitness += overlap.total_seconds() / 3600 * 100  # penalty per jam overlap
         
-        # Penalty untuk melewati deadline
+        # Penalty 2: Melewati deadline
         for task in schedule:
             if task.end_time > task.deadline:
                 days_late = (task.end_time - task.deadline).days
                 fitness += days_late * task.priority * 50
         
-        # Bonus untuk menyelesaikan task high priority lebih awal
+        # Bonus (dikurangi dari fitness) untuk menyelesaikan task high priority lebih awal
         for task in schedule:
             if task.end_time <= task.deadline:
                 days_early = (task.deadline - task.end_time).days
@@ -450,12 +401,16 @@ def genetic_algorithm_scheduling(tasks: List[Task], start_date: datetime, end_da
         random.shuffle(shuffled)
         
         for task in shuffled:
-            # Random start time dalam range
+            # Random start time dalam range kerja (misalnya 8 pagi hingga 8 malam)
             days_range = (end_date - start_date).days
+            if days_range <= 0: days_range = 1
+            
             random_days = random.randint(0, max(0, days_range - 1))
-            random_hours = random.randint(8, 20)  # Jam kerja 8-20
+            random_hours = random.randint(8, 20 - int(task.duration)) # Jam kerja 8-20
             
             start = start_date + timedelta(days=random_days, hours=random_hours)
+            
+            # Cek konflik (sederhana) untuk inisialisasi awal
             new_task = Task(
                 task.id, task.name, task.category,
                 start, task.duration, task.deadline,
@@ -484,20 +439,29 @@ def genetic_algorithm_scheduling(tasks: List[Task], start_date: datetime, end_da
             parent1 = min(random.sample(fitness_scores, tournament_size), key=lambda x: x[1])[0]
             parent2 = min(random.sample(fitness_scores, tournament_size), key=lambda x: x[1])[0]
             
-            # Crossover
+            # Crossover (Order Crossover)
             crossover_point = len(flexible_tasks) // 2
-            child_flexible = []
             
-            # Ambil setengah dari parent1
-            parent1_flexible = [t for t in parent1 if not t.is_fixed][:crossover_point]
-            child_flexible.extend(parent1_flexible)
-            
-            # Ambil sisanya dari parent2 (yang belum ada di child)
+            # 1. Ambil ID dari parent1
+            parent1_ids = {t.id for t in parent1 if not t.is_fixed}
             parent2_flexible = [t for t in parent2 if not t.is_fixed]
-            used_ids = {t.id for t in child_flexible}
-            for t in parent2_flexible:
-                if t.id not in used_ids:
-                    child_flexible.append(t)
+
+            # 2. Ciptakan jadwal anak (child)
+            child_flexible_map = {}
+            
+            # Crossover: Ambil waktu/posisi dari Parent1 untuk setengah tugas pertama (berdasarkan urutan ID di P1)
+            p1_flex = [t for t in parent1 if not t.is_fixed]
+            for i in range(crossover_point):
+                task = p1_flex[i]
+                child_flexible_map[task.id] = task
+
+            # Crossover: Ambil waktu/posisi dari Parent2 untuk tugas sisanya
+            # Gunakan tugas dari Parent2 yang belum ada di child
+            for task in parent2_flexible:
+                if task.id not in child_flexible_map:
+                    child_flexible_map[task.id] = task
+
+            child_flexible = list(child_flexible_map.values())
             
             # Mutasi: 10% chance untuk random reschedule satu tugas
             if random.random() < 0.1 and len(child_flexible) > 0:
@@ -537,6 +501,9 @@ def detect_conflicts(tasks: List[Task]) -> List[Tuple[Task, Task]]:
         List of tuples berisi pasangan tugas yang konflik
     """
     conflicts = []
+    # Urutkan tugas berdasarkan waktu mulai untuk efisiensi
+    tasks.sort(key=lambda x: x.start_time) 
+    
     for i, task1 in enumerate(tasks):
         for task2 in tasks[i+1:]:
             if (task1.start_time < task2.end_time and 
@@ -600,19 +567,13 @@ def export_to_csv(tasks: List[Task]) -> str:
 def check_upcoming_deadlines(tasks: List[Task], days_threshold=3) -> List[Task]:
     """
     Cek tugas dengan deadline mendekat dalam N hari
-    
-    Args:
-        tasks: List of tasks
-        days_threshold: Berapa hari ke depan yang dianggap "mendekat"
-    
-    Returns:
-        List of tasks dengan deadline mendekat
     """
     now = datetime.now()
     upcoming = []
     
     for task in tasks:
-        days_until_deadline = (task.deadline - now).days
+        # Cek hanya tanggal (abaikan waktu) untuk deadline
+        days_until_deadline = (task.deadline.date() - now.date()).days
         if 0 <= days_until_deadline <= days_threshold:
             upcoming.append(task)
     
@@ -624,16 +585,9 @@ def check_upcoming_deadlines(tasks: List[Task], days_threshold=3) -> List[Task]:
 def get_category_color(category: str) -> str:
     """
     Return warna hex berdasarkan kategori (Color Psychology)
-    
-    Kuliah: Biru (fokus, pembelajaran)
-    Tugas: Oranye (energi, kreativitas)
-    Ujian: Merah (urgent, penting)
-    Pribadi: Hijau (keseimbangan, kesehatan)
-    Organisasi: Ungu (kolaborasi)
-    Lainnya: Abu-abu
     """
     color_map = {
-        'Kuliah': '#4169E1',      # Royal Blue
+        'Kuliah': '#4169E1',       # Royal Blue
         'Tugas': '#FF8C00',        # Dark Orange
         'Ujian': '#DC143C',        # Crimson
         'Pribadi': '#32CD32',      # Lime Green
@@ -651,13 +605,13 @@ def get_category_emoji(category: str) -> str:
     """Return emoji yang sesuai dengan kategori"""
     emoji_map = {
         'Kuliah': '📚',
-        'Tugas': '✍',
+        'Tugas': '✍️',
         'Ujian': '📝',
         'Pribadi': '🏠',
         'Organisasi': '👥',
         'Olahraga': '⚽',
         'Istirahat': '😴',
-        'Makan': '🍽',
+        'Makan': '🍽️',
     }
     return emoji_map.get(category, '📌')
 
@@ -706,29 +660,34 @@ def main():
                 is_fixed = st.checkbox("Waktu Fixed (tidak bisa diubah oleh algoritma)", value=False)
             
             with col2:
-                start_date = st.date_input("Tanggal Mulai", datetime.now())
+                start_date = st.date_input("Tanggal Mulai", datetime.now().date()) # Ambil hanya tanggal
                 start_time = st.time_input("Jam Mulai", datetime.now().time())
                 duration = st.number_input("Durasi (jam)", min_value=0.5, max_value=24.0, value=2.0, step=0.5)
-                deadline_date = st.date_input("Deadline", datetime.now() + timedelta(days=7))
+                deadline_date = st.date_input("Deadline", datetime.now().date() + timedelta(days=7)) # Ambil hanya tanggal
             
             if st.button("➕ Tambah Tugas", type="primary"):
-                start_datetime = datetime.combine(start_date, start_time)
-                deadline_datetime = datetime.combine(deadline_date, datetime.max.time())
-                
-                new_task = Task(
-                    id=st.session_state.task_counter,
-                    name=task_name,
-                    category=category,
-                    start_time=start_datetime,
-                    duration=duration,
-                    deadline=deadline_datetime,
-                    priority=priority,
-                    is_fixed=is_fixed
-                )
-                
-                st.session_state.tasks.append(new_task)
-                st.session_state.task_counter += 1
-                st.success(f"✅ Tugas '{task_name}' berhasil ditambahkan!")
+                # Pastikan input nama tidak kosong
+                if not task_name:
+                    st.error("Nama kegiatan tidak boleh kosong!")
+                else:
+                    start_datetime = datetime.combine(start_date, start_time)
+                    # Deadline menggunakan waktu maksimal hari itu
+                    deadline_datetime = datetime.combine(deadline_date, datetime.max.time())
+                    
+                    new_task = Task(
+                        id=st.session_state.task_counter,
+                        name=task_name,
+                        category=category,
+                        start_time=start_datetime,
+                        duration=duration,
+                        deadline=deadline_datetime,
+                        priority=priority,
+                        is_fixed=is_fixed
+                    )
+                    
+                    st.session_state.tasks.append(new_task)
+                    st.session_state.task_counter += 1
+                    st.success(f"✅ Tugas '{task_name}' berhasil ditambahkan!")
         
         # TAB: Lihat & Edit
         with tab2:
@@ -744,25 +703,28 @@ def main():
                 
                 col1, col2 = st.columns(2)
                 
+                task_options = range(len(st.session_state.tasks))
+                
                 # EDIT TUGAS
                 with col1:
-                    st.subheader("✏ Edit Tugas")
-                    task_to_edit = st.selectbox(
+                    st.subheader("✏️ Edit Tugas")
+                    task_to_edit_index = st.selectbox(
                         "Pilih tugas yang akan diedit:",
-                        options=range(len(st.session_state.tasks)),
+                        options=task_options,
                         format_func=lambda x: f"{st.session_state.tasks[x].name} - {st.session_state.tasks[x].category}",
                         key="edit_select"
                     )
                     
-                    if task_to_edit is not None:
-                        selected_task = st.session_state.tasks[task_to_edit]
+                    if task_to_edit_index is not None:
+                        selected_task = st.session_state.tasks[task_to_edit_index]
                         
                         with st.form(key="edit_form"):
                             edit_name = st.text_input("Nama Kegiatan", value=selected_task.name)
+                            category_options = ["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"]
                             edit_category = st.selectbox(
                                 "Kategori",
-                                ["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"],
-                                index=["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"].index(selected_task.category) if selected_task.category in ["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"] else 0
+                                category_options,
+                                index=category_options.index(selected_task.category) if selected_task.category in category_options else 0
                             )
                             
                             edit_col1, edit_col2 = st.columns(2)
@@ -780,569 +742,241 @@ def main():
                             
                             if submit_edit:
                                 # Update task
-                                st.session_state.tasks[task_to_edit].name = edit_name
-                                st.session_state.tasks[task_to_edit].category = edit_category
-                                st.session_state.tasks[task_to_edit].start_time = datetime.combine(edit_start_date, edit_start_time)
-                                st.session_state.tasks[task_to_edit].duration = edit_duration
-                                st.session_state.tasks[task_to_edit].deadline = datetime.combine(edit_deadline, datetime.max.time())
-                                st.session_state.tasks[task_to_edit].priority = edit_priority
-                                st.session_state.tasks[task_to_edit].is_fixed = edit_is_fixed
-                                st.session_state.tasks[task_to_edit].end_time = st.session_state.tasks[task_to_edit].start_time + timedelta(hours=edit_duration)
+                                st.session_state.tasks[task_to_edit_index].name = edit_name
+                                st.session_state.tasks[task_to_edit_index].category = edit_category
+                                st.session_state.tasks[task_to_edit_index].start_time = datetime.combine(edit_start_date, edit_start_time)
+                                st.session_state.tasks[task_to_edit_index].duration = edit_duration
+                                st.session_state.tasks[task_to_edit_index].deadline = datetime.combine(edit_deadline, datetime.max.time())
+                                st.session_state.tasks[task_to_edit_index].priority = edit_priority
+                                st.session_state.tasks[task_to_edit_index].is_fixed = edit_is_fixed
+                                st.session_state.tasks[task_to_edit_index].end_time = st.session_state.tasks[task_to_edit_index].start_time + timedelta(hours=edit_duration)
                                 
                                 st.success(f"✅ Tugas '{edit_name}' berhasil diupdate!")
-                                st.rerun()
+                                # st.rerun() # Tidak perlu rerun karena data sudah diupdate di session state
                 
                 # HAPUS TUGAS
                 with col2:
-                    st.subheader("🗑 Hapus Tugas")
-                    task_to_delete = st.selectbox(
+                    st.subheader("🗑️ Hapus Tugas")
+                    task_to_delete_index = st.selectbox(
                         "Pilih tugas yang akan dihapus:",
-                        options=range(len(st.session_state.tasks)),
+                        options=task_options,
                         format_func=lambda x: f"{st.session_state.tasks[x].name} - {st.session_state.tasks[x].category}",
                         key="delete_select"
                     )
                     
-                    st.write("")  # spacing
-                    st.write("")
-                    st.write("")
-                    
-                    if st.button("🗑 Hapus Tugas", type="secondary", use_container_width=True):
-                        deleted_task = st.session_state.tasks.pop(task_to_delete)
-                        st.success(f"✅ Tugas '{deleted_task.name}' berhasil dihapus!")
-                        st.rerun()
-        
-        # TAB: Import CSV
-        with tab3:
-            st.subheader("📤 Import Tugas dari CSV")
-            
-            st.markdown("""
-            *Format CSV yang dibutuhkan:*
-            - Nama, Kategori, Tanggal Mulai (YYYY-MM-DD), Jam Mulai (HH:MM), Durasi (jam), Deadline (YYYY-MM-DD), Prioritas (1-5), Fixed (True/False)
-            
-            *Contoh:*
-            
-            Nama,Kategori,Tanggal Mulai,Jam Mulai,Durasi,Deadline,Prioritas,Fixed
-            Kuliah Kalkulus,Kuliah,2025-01-15,08:00,2,2025-01-15,4,True
-            Tugas Algoritma,Tugas,2025-01-16,14:00,3,2025-01-20,5,False
-            
-            """)
-            
-            uploaded_file = st.file_uploader("Upload file CSV", type=['csv'])
-            
-            if uploaded_file is not None:
-                try:
-                    df_upload = pd.read_csv(uploaded_file)
-                    
-                    # Validasi kolom
-                    required_cols = ['Nama', 'Kategori', 'Tanggal Mulai', 'Jam Mulai', 'Durasi', 'Deadline', 'Prioritas']
-                    if not all(col in df_upload.columns for col in required_cols):
-                        st.error("❌ Format CSV tidak sesuai. Pastikan memiliki kolom yang benar.")
-                    else:
-                        st.success(f"✅ File berhasil dibaca! Ditemukan {len(df_upload)} tugas.")
-                        st.dataframe(df_upload)
+                    if task_to_delete_index is not None:
+                        task_name_to_delete = st.session_state.tasks[task_to_delete_index].name
                         
-                        if st.button("📥 Import Semua Tugas", type="primary"):
-                            for _, row in df_upload.iterrows():
-                                start_datetime = datetime.strptime(
-                                    f"{row['Tanggal Mulai']} {row['Jam Mulai']}", 
-                                    "%Y-%m-%d %H:%M"
-                                )
-                                deadline_datetime = datetime.strptime(row['Deadline'], "%Y-%m-%d")
-                                is_fixed_val = row.get('Fixed', False)
-                                if isinstance(is_fixed_val, str):
-                                    is_fixed_val = is_fixed_val.lower() == 'true'
-                                
-                                new_task = Task(
-                                    id=st.session_state.task_counter,
-                                    name=row['Nama'],
-                                    category=row['Kategori'],
-                                    start_time=start_datetime,
-                                    duration=float(row['Durasi']),
-                                    deadline=deadline_datetime,
-                                    priority=int(row['Prioritas']),
-                                    is_fixed=is_fixed_val
-                                )
-                                
-                                st.session_state.tasks.append(new_task)
-                                st.session_state.task_counter += 1
-                            
-                            st.success(f"✅ Berhasil import {len(df_upload)} tugas!")
+                        if st.button(f"🗑️ Konfirmasi Hapus '{task_name_to_delete}'"):
+                            del st.session_state.tasks[task_to_delete_index]
+                            st.success(f"🗑️ Tugas '{task_name_to_delete}' berhasil dihapus.")
                             st.rerun()
-                
-                except Exception as e:
-                    st.error(f"❌ Error saat membaca CSV: {str(e)}")
-    
+                            
+        # TAB: Import CSV (Placeholder)
+        with tab3:
+            st.info("Fitur Import CSV akan ditambahkan di versi mendatang.")
+            # ... (Logika Import CSV)
+            
     # ===================================================================================
-    # MENU 2: GENERATE JADWAL
+    # MENU 2: GENERATE JADWAL (ALGORITMA)
     # ===================================================================================
-    elif menu == "🤖 Generate Jadwal":
-        st.header("🤖 Generate Jadwal Otomatis")
+    if menu == "🤖 Generate Jadwal":
+        st.header("⚙️ Optimasi Penjadwalan")
         
-        if len(st.session_state.tasks) == 0:
-            st.warning("⚠ Belum ada tugas untuk dijadwalkan. Silakan tambah tugas terlebih dahulu.")
-        else:
-            st.info(f"📊 Total tugas yang akan dijadwalkan: {len(st.session_state.tasks)}")
+        if not st.session_state.tasks:
+            st.warning("Tambahkan tugas terlebih dahulu di menu 'Input & Manage Tugas'.")
+            return
             
-            # Pilih algoritma
-            st.subheader("🎯 Pilih Algoritma Penjadwalan")
+        st.info(f"Total {len(st.session_state.tasks)} tugas siap dijadwalkan.")
             
-            col1, col2 = st.columns([2, 1])
+        # Pilihan Algoritma
+        algorithm_choice = st.selectbox(
+            "Pilih Algoritma Penjadwalan:",
+            [
+                "Genetic Algorithm (GA) - Optimal untuk Kompleksitas",
+                "Greedy Earliest Deadline First (EDF) - Cepat & Prioritas Deadline",
+                "Dynamic Programming (DP) - Optimal untuk Nilai Tugas",
+                "Brute Force - Optimal Tapi Sangat Lambat (Max 10 Tugas Fleksibel)"
+            ],
+            key="algo_select"
+        )
+
+        # Parameter Penjadwalan
+        st.subheader("Rentang Waktu Penjadwalan")
+        col1, col2 = st.columns(2)
+        with col1:
+            schedule_start_date = st.date_input("Mulai Dari Tanggal", datetime.now().date())
+        with col2:
+            schedule_end_date = st.date_input("Hingga Tanggal", datetime.now().date() + timedelta(days=7))
             
-            with col1:
-                algorithm = st.selectbox(
-                    "Algoritma:",
-                    [
-                        "Genetic Algorithm (GA) - RECOMMENDED ⭐",
-                        "Greedy - Earliest Deadline First (EDF)",
-                        "Dynamic Programming (DP)",
-                        "Brute Force (untuk ≤ 10 tugas)"
-                    ]
-                )
+        start_dt = datetime.combine(schedule_start_date, datetime.min.time())
+        end_dt = datetime.combine(schedule_end_date, datetime.max.time())
+        
+        st.markdown("---")
+        
+        if st.button("🚀 Generate Jadwal", type="primary"):
+            st.session_state.scheduled_tasks = [] # Reset jadwal sebelumnya
+            st.session_state.algorithm_used = algorithm_choice
+            
+            with st.spinner(f"Sedang menjalankan {algorithm_choice}..."):
+                if "Brute Force" in algorithm_choice:
+                    scheduled = brute_force_scheduling(st.session_state.tasks, start_dt, end_dt)
+                elif "Greedy" in algorithm_choice:
+                    scheduled = greedy_edf_scheduling(st.session_state.tasks, start_dt, end_dt)
+                elif "Dynamic Programming" in algorithm_choice:
+                    scheduled = dynamic_programming_scheduling(st.session_state.tasks, start_dt, end_dt)
+                elif "Genetic" in algorithm_choice:
+                    scheduled = genetic_algorithm_scheduling(st.session_state.tasks, start_dt, end_dt)
+                else:
+                    scheduled = []
+
+            st.session_state.scheduled_tasks = scheduled
+            
+            if scheduled:
+                stats = calculate_statistics(scheduled, start_dt, end_dt)
+                st.success(f"🎉 Penjadwalan Selesai menggunakan **{algorithm_choice}**!")
+                st.metric("Tugas Selesai Tepat Waktu", f"{stats['on_time_tasks']}/{stats['total_tasks']}", delta=f"-{stats['late_tasks']} terlambat")
+                st.metric("Total Konflik Waktu", stats['conflicts'], delta_color="inverse")
+            else:
+                st.warning("Jadwal tidak dapat dibuat. Coba sesuaikan rentang waktu atau input tugas.")
                 
-                # Info algoritma
-                if "Genetic" in algorithm:
-                    st.markdown("""
-                    *🧬 Genetic Algorithm:*
-                    - ✅ Paling optimal untuk dataset besar
-                    - ✅ Dapat handle constraint kompleks
-                    - ✅ Multi-objektif optimization
-                    - ⚡ Kompleksitas: O(g × p × n)
-                    - 🎯 Cocok untuk: Semua ukuran dataset
-                    """)
-                elif "Greedy" in algorithm:
-                    st.markdown("""
-                    *⚡ Greedy EDF:*
-                    - ✅ Cepat dan efisien
-                    - ✅ Hasil cukup optimal
-                    - ✅ Intuitif (deadline terdekat dulu)
-                    - ⚡ Kompleksitas: O(n log n)
-                    - 🎯 Cocok untuk: Dataset sedang-besar
-                    """)
-                elif "Dynamic" in algorithm:
-                    st.markdown("""
-                    *🎲 Dynamic Programming:*
-                    - ✅ Optimal secara matematis
-                    - ✅ Weighted interval scheduling
-                    - ⚠ Lebih lambat dari Greedy
-                    - ⚡ Kompleksitas: O(n²)
-                    - 🎯 Cocok untuk: Optimasi maksimum value
-                    """)
-                else:  # Brute Force
-                    st.markdown("""
-                    *🔨 Brute Force:*
-                    - ✅ Mencoba semua kemungkinan
-                    - ✅ Hasil optimal (jika selesai)
-                    - ⚠ SANGAT LAMBAT untuk > 10 tugas
-                    - ⚡ Kompleksitas: O(n!)
-                    - 🎯 Cocok untuk: Dataset sangat kecil
-                    """)
-            
-            with col2:
-                start_date = st.date_input("Mulai dari:", datetime.now())
-                days_range = st.number_input("Rentang (hari):", 1, 90, 14)
-                end_date = start_date + timedelta(days=days_range)
-            
-            # Tombol generate
-            if st.button("🚀 Generate Jadwal Optimal", type="primary", use_container_width=True):
-                with st.spinner("⏳ Sedang mengoptimalkan jadwal... Mohon tunggu."):
-                    start_datetime = datetime.combine(start_date, datetime.min.time())
-                    end_datetime = datetime.combine(end_date, datetime.max.time())
-                    
-                    # Pilih algoritma
-                    if "Genetic" in algorithm:
-                        scheduled = genetic_algorithm_scheduling(
-                            st.session_state.tasks, start_datetime, end_datetime
-                        )
-                        st.session_state.algorithm_used = "Genetic Algorithm"
-                    elif "Greedy" in algorithm:
-                        scheduled = greedy_edf_scheduling(
-                            st.session_state.tasks, start_datetime, end_datetime
-                        )
-                        st.session_state.algorithm_used = "Greedy EDF"
-                    elif "Dynamic" in algorithm:
-                        scheduled = dynamic_programming_scheduling(
-                            st.session_state.tasks, start_datetime, end_datetime
-                        )
-                        st.session_state.algorithm_used = "Dynamic Programming"
-                    else:  # Brute Force
-                        scheduled = brute_force_scheduling(
-                            st.session_state.tasks, start_datetime, end_datetime
-                        )
-                        st.session_state.algorithm_used = "Brute Force"
-                    
-                    st.session_state.scheduled_tasks = scheduled
-                    
-                    # Hitung statistik
-                    stats = calculate_statistics(scheduled, start_datetime, end_datetime)
-                    
-                    st.success("✅ Jadwal berhasil di-generate!")
-                    
-                    # Tampilkan statistik
-                    st.subheader("📊 Statistik Jadwal")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Total Tugas", stats['total_tasks'])
-                    col2.metric("Total Jam", f"{stats['total_hours']:.1f}")
-                    col3.metric("Jam Kosong", f"{stats['free_hours']:.1f}")
-                    col4.metric("Konflik", stats['conflicts'], 
-                               delta=None if stats['conflicts'] == 0 else "⚠")
-                    
-                    col5, col6 = st.columns(2)
-                    col5.metric("✅ Tepat Waktu", stats['on_time_tasks'])
-                    col6.metric("⚠ Terlambat", stats['late_tasks'],
-                               delta=None if stats['late_tasks'] == 0 else "!")
-                    
-                    if stats['conflicts'] > 0:
-                        st.warning(f"⚠ Ditemukan {stats['conflicts']} konflik waktu. Pertimbangkan untuk menyesuaikan durasi atau deadline.")
-    
     # ===================================================================================
     # MENU 3: LIHAT JADWAL
     # ===================================================================================
-    elif menu == "📊 Lihat Jadwal":
-        st.header("📊 Visualisasi Jadwal")
+    if menu == "📊 Lihat Jadwal":
+        st.header("🗓️ Visualisasi Kalender dan Detail Jadwal")
+
+        if not st.session_state.scheduled_tasks:
+            st.info("Silakan *Generate Jadwal* terlebih dahulu di menu sebelumnya.")
+            return
+
+        scheduled_tasks = st.session_state.scheduled_tasks
+        algorithm = st.session_state.algorithm_used
         
-        if len(st.session_state.scheduled_tasks) == 0:
-            st.warning("⚠ Belum ada jadwal yang di-generate. Silakan generate jadwal terlebih dahulu.")
-        else:
-            st.info(f"🤖 Algoritma yang digunakan: *{st.session_state.algorithm_used}*")
+        st.subheader(f"Hasil Optimasi ({algorithm})")
+        stats = calculate_statistics(scheduled_tasks, scheduled_tasks[0].start_time, scheduled_tasks[-1].end_time)
+        
+        col_st1, col_st2, col_st3, col_st4 = st.columns(4)
+        col_st1.metric("Total Tugas Dijadwalkan", stats['total_tasks'])
+        col_st2.metric("Jam Kerja Terpakai", f"{stats['total_hours']:.1f} jam")
+        col_st3.metric("Konflik", stats['conflicts'], delta_color="inverse")
+        col_st4.metric("Terlambat Deadline", stats['late_tasks'], delta_color="inverse")
+        
+        st.markdown("---")
+        
+        # Tampilkan dalam bentuk Kalender Harian (Gantt Chart Sederhana)
+        st.subheader("Visualisasi Jadwal Harian")
+        
+        # Ambil rentang tanggal dari jadwal yang ada
+        min_date = min(t.start_time for t in scheduled_tasks).date()
+        max_date = max(t.end_time for t in scheduled_tasks).date()
+        date_range = [min_date + timedelta(days=x) for x in range((max_date - min_date).days + 1)]
+        
+        selected_date = st.date_input("Pilih Tanggal", min_value=min_date, max_value=max_date, value=min_date)
+        
+        # Filter tugas untuk tanggal yang dipilih
+        daily_schedule = [t for t in scheduled_tasks if t.start_time.date() == selected_date]
+        daily_schedule.sort(key=lambda x: x.start_time)
+        
+        if daily_schedule:
+            st.markdown(f"### Jadwal **{selected_date.strftime('%A, %d %B %Y')}**")
             
-            # Pilih tampilan
-            view_type = st.radio(
-                "Pilih Tampilan:",
-                ["📅 Per Minggu", "📆 Per Bulan"],
-                horizontal=True
-            )
-            
-            if view_type == "📅 Per Minggu":
-                st.subheader("Jadwal Mingguan")
+            # Buat representasi visual jam 8 pagi - 8 malam
+            for hour in range(8, 21):
+                st.markdown(f"**{hour:02}:00**")
                 
-                # Group by week
-                tasks_by_week = {}
-                for task in st.session_state.scheduled_tasks:
-                    week_start = task.start_time - timedelta(days=task.start_time.weekday())
-                    week_key = week_start.strftime("%Y-%m-%d")
+                # Cek task yang dimulai atau berlangsung pada jam ini
+                for task in daily_schedule:
+                    start_hour = task.start_time.hour + task.start_time.minute / 60
+                    end_hour = task.end_time.hour + task.end_time.minute / 60
                     
-                    if week_key not in tasks_by_week:
-                        tasks_by_week[week_key] = []
-                    tasks_by_week[week_key].append(task)
-                
-                # Pilih minggu
-                selected_week = st.selectbox(
-                    "Pilih Minggu:",
-                    options=sorted(tasks_by_week.keys()),
-                    format_func=lambda x: f"Minggu {datetime.strptime(x, '%Y-%m-%d').strftime('%d %B %Y')}"
-                )
-                
-                # Tampilkan jadwal dalam format tabel horizontal (Senin - Minggu)
-                week_tasks = tasks_by_week[selected_week]
-                week_start = datetime.strptime(selected_week, "%Y-%m-%d")
-                
-                # Buat 7 kolom untuk 7 hari
-                days_name = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
-                cols = st.columns(7)
-                
-                for day_offset in range(7):
-                    current_day = week_start + timedelta(days=day_offset)
-                    day_tasks = [t for t in week_tasks if t.start_time.date() == current_day.date()]
-                    
-                    with cols[day_offset]:
-                        # Header hari
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%); 
-                                    color: white; padding: 8px; border-radius: 8px 8px 0 0; 
-                                    text-align: center; font-weight: bold; margin-bottom: 0;">
-                            {days_name[day_offset]}<br>
-                            <span style="font-size: 0.9em;">{current_day.strftime('%d/%m')}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    if start_hour <= hour < end_hour:
                         
-                        # Container untuk tasks
-                        if len(day_tasks) == 0:
-                            st.markdown("""
-                            <div style="background-color: #f8f9fa; padding: 15px; 
-                                        border: 1px solid #dee2e6; border-top: none;
-                                        border-radius: 0 0 8px 8px; min-height: 200px;
-                                        text-align: center; color: #999;">
-                                <br><br>📭<br>Tidak ada kegiatan
+                        # Hitung durasi span (untuk visualisasi)
+                        # Hitung berapa menit task ini berlangsung di jam ini
+                        start_of_current_hour = datetime.combine(selected_date, datetime.min.time()) + timedelta(hours=hour)
+                        end_of_current_hour = start_of_current_hour + timedelta(hours=1)
+                        
+                        overlap_start = max(start_of_current_hour, task.start_time)
+                        overlap_end = min(end_of_current_hour, task.end_time)
+                        
+                        if overlap_end > overlap_start:
+                            overlap_minutes = (overlap_end - overlap_start).total_seconds() / 60
+                            # Proporsionalitas: 1 jam = 100%
+                            height_style = f"height: {overlap_minutes * 2}px; line-height: {overlap_minutes * 2}px; overflow: hidden;"
+                            
+                            color = get_category_color(task.category)
+                            emoji = get_category_emoji(task.category)
+                            
+                            st.markdown(f"""
+                            <div style="
+                                background-color: {color};
+                                color: white;
+                                padding: 5px;
+                                border-radius: 5px;
+                                margin-left: 10px;
+                                margin-top: -10px;
+                                margin-bottom: 5px;
+                                font-size: 14px;
+                                {height_style}
+                            ">
+                                {emoji} {task.name} ({task.start_time.strftime('%H:%M')} - {task.end_time.strftime('%H:%M')})
                             </div>
                             """, unsafe_allow_html=True)
-                        else:
-                            tasks_html = '<div style="background-color: white; padding: 8px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px; min-height: 200px;">'
-                            
-                            for task in sorted(day_tasks, key=lambda x: x.start_time):
-                                color = get_category_color(task.category)
-                                emoji = get_category_emoji(task.category)
-                                
-                                tasks_html += f"""
-                                <div style="background-color: {color}; color: white; 
-                                            padding: 6px; border-radius: 5px; margin: 5px 0;
-                                            font-size: 0.85em;">
-                                    <b>{emoji} {task.name[:20]}</b><br>
-                                    ⏰ {task.start_time.strftime('%H:%M')}-{task.end_time.strftime('%H:%M')}<br>
-                                    {'⭐' * task.priority}
-                                </div>
-                                """
-                            
-                            tasks_html += '</div>'
-                            st.markdown(tasks_html, unsafe_allow_html=True)
+                st.markdown('<div style="border-left: 2px dashed #ccc; height: 10px; margin-left: 8px;"></div>', unsafe_allow_html=True)
+        else:
+            st.info(f"Tidak ada kegiatan terjadwal pada tanggal {selected_date.strftime('%d %B %Y')}.")
             
-            else:  # Per Bulan
-                st.subheader("Kalender Bulanan")
-                
-                # Group by month
-                tasks_by_month = {}
-                for task in st.session_state.scheduled_tasks:
-                    month_key = task.start_time.strftime("%Y-%m")
-                    
-                    if month_key not in tasks_by_month:
-                        tasks_by_month[month_key] = []
-                    tasks_by_month[month_key].append(task)
-                
-                # Pilih bulan
-                selected_month = st.selectbox(
-                    "Pilih Bulan:",
-                    options=sorted(tasks_by_month.keys()),
-                    format_func=lambda x: datetime.strptime(x, "%Y-%m").strftime("%B %Y")
-                )
-                
-                # Parse bulan
-                year, month = map(int, selected_month.split('-'))
-                month_tasks = tasks_by_month[selected_month]
-                
-                # Buat kalender
-                cal = calendar.monthcalendar(year, month)
-                
-                st.markdown(f"""
-                <div style="text-align: center; background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%);
-                            color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-                    <h2 style="margin: 0;">{calendar.month_name[month]} {year}</h2>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # CSS untuk kalender yang lebih rapi dan efisien
-                st.markdown("""
-                <style>
-                    .cal-header {
-                        background: #FF8C00;
-                        color: white;
-                        padding: 10px;
-                        text-align: center;
-                        font-weight: bold;
-                        border: 1px solid #ddd;
-                        font-size: 0.9em;
-                    }
-                    .cal-day {
-                        background: white;
-                        border: 1px solid #ddd;
-                        padding: 8px;
-                        min-height: 100px;
-                        max-height: 120px;
-                        overflow-y: auto;
-                        font-size: 0.8em;
-                    }
-                    .cal-day-empty {
-                        background: #f5f5f5;
-                        border: 1px solid #ddd;
-                        min-height: 100px;
-                    }
-                    .cal-day-number {
-                        font-weight: bold;
-                        font-size: 1.1em;
-                        color: #333;
-                        margin-bottom: 5px;
-                    }
-                    .cal-task {
-                        background: #FFE4B5;
-                        padding: 3px 5px;
-                        border-radius: 3px;
-                        margin: 2px 0;
-                        font-size: 0.75em;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-                    .cal-task-more {
-                        color: #FF6347;
-                        font-weight: bold;
-                        font-size: 0.7em;
-                    }
-                </style>
-                """, unsafe_allow_html=True)
-                
-                # Header hari dalam HTML table
-                days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-                
-                calendar_html = '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
-                
-                # Header row
-                calendar_html += '<tr>'
-                for day in days:
-                    calendar_html += f'<td class="cal-header">{day}</td>'
-                calendar_html += '</tr>'
-                
-                # Calendar weeks
-                for week in cal:
-                    calendar_html += '<tr>'
-                    for day in week:
-                        if day == 0:
-                            calendar_html += '<td class="cal-day-empty"></td>'
-                        else:
-                            current_date = datetime(year, month, day).date()
-                            day_tasks = [t for t in month_tasks if t.start_time.date() == current_date]
-                            
-                            calendar_html += '<td class="cal-day">'
-                            calendar_html += f'<div class="cal-day-number">{day}</div>'
-                            
-                            # Tampilkan max 3 tasks
-                            for i, task in enumerate(day_tasks[:3]):
-                                emoji = get_category_emoji(task.category)
-                                short_name = task.name[:12] + '...' if len(task.name) > 12 else task.name
-                                calendar_html += f'<div class="cal-task">{emoji} {short_name}</div>'
-                            
-                            if len(day_tasks) > 3:
-                                calendar_html += f'<div class="cal-task-more">+{len(day_tasks)-3} lagi</div>'
-                            
-                            calendar_html += '</td>'
-                    
-                    calendar_html += '</tr>'
-                
-                calendar_html += '</table>'
-                
-                st.markdown(calendar_html, unsafe_allow_html=True)
-                
-                # Legend kategori
-                st.markdown("---")
-                st.markdown("### 🎨 Legend Kategori:")
-                
-                categories = list(set([t.category for t in month_tasks]))
-                legend_cols = st.columns(min(4, len(categories)))
-                
-                for i, cat in enumerate(categories):
-                    with legend_cols[i % 4]:
-                        color = get_category_color(cat)
-                        emoji = get_category_emoji(cat)
-                        st.markdown(f"""
-                        <div style="display: inline-block; background-color: {color}; 
-                                    color: white; padding: 5px 12px; border-radius: 5px;
-                                    margin: 3px; font-size: 0.85em;">
-                            {emoji} {cat}
-                        </div>
-                        """, unsafe_allow_html=True)
-    
     # ===================================================================================
     # MENU 4: EXPORT & NOTIFIKASI
     # ===================================================================================
-    elif menu == "📥 Export & Notifikasi":
-        st.header("📥 Export Jadwal & Notifikasi")
+    if menu == "📥 Export & Notifikasi":
+        st.header("📥 Export & Monitoring")
+
+        # NOTIFIKASI DEADLINE
+        st.subheader("🔔 Notifikasi Deadline Mendekat")
         
-        if len(st.session_state.scheduled_tasks) == 0:
-            st.warning("⚠ Belum ada jadwal yang di-generate.")
-        else:
-            # Export options
-            st.subheader("💾 Export Jadwal")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Export CSV
-                csv_data = export_to_csv(st.session_state.scheduled_tasks)
-                st.download_button(
-                    label="📄 Download CSV",
-                    data=csv_data,
-                    file_name=f"jadwal_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            
-            with col2:
-                # Info untuk PDF
-                st.info("📑 Export PDF: Gunakan Print to PDF dari browser Anda pada halaman 'Lihat Jadwal'")
-            
-            st.markdown("---")
-            
-            # Notifikasi deadline
-            st.subheader("🔔 Notifikasi Deadline Mendekat")
-            
-            days_threshold = st.slider("Tampilkan deadline dalam berapa hari ke depan?", 1, 14, 3)
-            
-            upcoming = check_upcoming_deadlines(st.session_state.scheduled_tasks, days_threshold)
-            
-            if len(upcoming) == 0:
-                st.success("✅ Tidak ada deadline mendekat dalam waktu dekat!")
-            else:
-                st.warning(f"⚠ Ada {len(upcoming)} tugas dengan deadline mendekat!")
-                
-                for task in sorted(upcoming, key=lambda x: x.deadline):
-                    days_left = (task.deadline - datetime.now()).days
-                    emoji = get_category_emoji(task.category)
-                    
-                    urgency = "🔴 URGENT!" if days_left <= 1 else "🟡 Segera" if days_left <= 2 else "🟢 Persiapan"
-                    
-                    st.markdown(f"""
-                    <div class="deadline-urgent" style="padding: 15px; margin: 10px 0; border-radius: 10px;">
-                        <h4>{urgency} {emoji} {task.name}</h4>
-                        <p><b>Deadline:</b> {task.deadline.strftime('%d %B %Y %H:%M')}</p>
-                        <p><b>Sisa waktu:</b> {days_left} hari</p>
-                        <p><b>Prioritas:</b> {'⭐' * task.priority}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            
-            # Kegiatan selanjutnya
-            st.subheader("⏭ Kegiatan Selanjutnya")
-            
-            now = datetime.now()
-            next_tasks = [t for t in st.session_state.scheduled_tasks if t.start_time > now]
-            next_tasks.sort(key=lambda x: x.start_time)
-            
-            if len(next_tasks) == 0:
-                st.info("📭 Tidak ada kegiatan terjadwal selanjutnya")
-            else:
-                next_task = next_tasks[0]
-                time_until = next_task.start_time - now
-                hours_until = time_until.total_seconds() / 3600
-                
-                emoji = get_category_emoji(next_task.category)
-                color = get_category_color(next_task.category)
-                
+        upcoming_deadlines = check_upcoming_deadlines(st.session_state.tasks, days_threshold=7)
+        
+        if upcoming_deadlines:
+            st.warning(f"🚨 Terdapat **{len(upcoming_deadlines)}** tugas dengan deadline dalam 7 hari ke depan!")
+            for task in upcoming_deadlines:
+                days_left = (task.deadline.date() - datetime.now().date()).days
                 st.markdown(f"""
-                <div style="background-color: {color}; color: white; padding: 20px; 
-                            border-radius: 15px; text-align: center;">
-                    <h2>{emoji} {next_task.name}</h2>
-                    <h3>⏰ {next_task.start_time.strftime('%A, %d %B %Y')}</h3>
-                    <h3>🕐 {next_task.start_time.strftime('%H:%M')} - {next_task.end_time.strftime('%H:%M')}</h3>
-                    <p style="font-size: 18px;">
-                        <b>Dimulai dalam: {int(hours_until)} jam {int((hours_until % 1) * 60)} menit</b>
-                    </p>
-                    <p><b>Durasi:</b> {next_task.duration} jam | <b>Prioritas:</b> {'⭐' * next_task.priority}</p>
+                <div class="card deadline-urgent">
+                    **{task.name}** ({task.category})
+                    <br>
+                    Deadline: **{task.deadline.strftime('%d %B')}** (Sisa {days_left} hari)
+                    <br>
+                    Durasi: {task.duration} jam. Prioritas: {task.priority}/5
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # Tampilkan 3 kegiatan berikutnya
-                if len(next_tasks) > 1:
-                    st.subheader("📋 3 Kegiatan Berikutnya:")
-                    for i, task in enumerate(next_tasks[1:4], 1):
-                        emoji = get_category_emoji(task.category)
-                        st.markdown(f"""
-                        *{i}. {emoji} {task.name}*  
-                        📅 {task.start_time.strftime('%d %B %Y, %H:%M')} | 
-                        ⏱ {task.duration} jam | 
-                        {'⭐' * task.priority}
-                        """)
-    
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #888; padding: 20px;">
-        <p>📚 Aplikasi Penjadwalan Mahasiswa v1.0</p>
-        <p>Dibuat dengan ❤ menggunakan Streamlit & Color Psychology</p>
-        <p><small>💡 Tips: Generate ulang jadwal dengan algoritma berbeda untuk hasil optimal!</small></p>
-    </div>
-    """, unsafe_allow_html=True)
+        else:
+            st.success("✅ Tidak ada deadline mendesak dalam 7 hari ke depan.")
+
+        st.markdown("---")
+        
+        # EXPORT JADWAL
+        st.subheader("📤 Export Jadwal")
+        
+        if st.session_state.scheduled_tasks:
+            csv_data = export_to_csv(st.session_state.scheduled_tasks)
+            st.download_button(
+                label="⬇️ Download Jadwal Terakhir (CSV)",
+                data=csv_data,
+                file_name=f"Jadwal_Mahasiswa_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                type="secondary"
+            )
+            st.success("Jadwal Anda siap untuk di-export ke CSV.")
+        else:
+            st.info("Silakan *Generate Jadwal* terlebih dahulu untuk mengaktifkan fitur export.")
+
 
 # ===================================================================================
-# RUN APPLICATION
+# EKSEKUSI UTAMA
 # ===================================================================================
-if _name_ == "_main_":
+# PERBAIKAN KRUSIAL: Mengganti _name_ == "_main_" menjadi __name__ == "__main__"
+# (Tambahkan dua garis bawah pada variabel __name__ dan __main__)
+if __name__ == "__main__":
     main()
