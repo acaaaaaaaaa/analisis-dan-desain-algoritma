@@ -5,7 +5,7 @@ APLIKASI PENJADWALAN MAHASISWA OTOMATIS
 Aplikasi ini membantu mahasiswa mengatur jadwal kegiatan dengan berbagai algoritma
 optimasi. Mendukung CRUD, visualisasi kalender, dan export jadwal.
 
-Author: Putri Yuni Aqsyah & Putri Zahra Panggih.S
+Author: Assistant
 Date: 2025
 ===================================================================================
 """
@@ -740,20 +740,76 @@ def main():
                 # Tampilkan dalam tabel
                 tasks_data = [t.to_dict() for t in st.session_state.tasks]
                 df = pd.DataFrame(tasks_data)
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, use_container_width=True, height=300)
                 
-                # Pilihan untuk delete
-                st.subheader("🗑️ Hapus Tugas")
-                task_to_delete = st.selectbox(
-                    "Pilih tugas yang akan dihapus:",
-                    options=range(len(st.session_state.tasks)),
-                    format_func=lambda x: f"{st.session_state.tasks[x].name} - {st.session_state.tasks[x].category}"
-                )
+                col1, col2 = st.columns(2)
                 
-                if st.button("🗑️ Hapus Tugas", type="secondary"):
-                    deleted_task = st.session_state.tasks.pop(task_to_delete)
-                    st.success(f"✅ Tugas '{deleted_task.name}' berhasil dihapus!")
-                    st.rerun()
+                # EDIT TUGAS
+                with col1:
+                    st.subheader("✏️ Edit Tugas")
+                    task_to_edit = st.selectbox(
+                        "Pilih tugas yang akan diedit:",
+                        options=range(len(st.session_state.tasks)),
+                        format_func=lambda x: f"{st.session_state.tasks[x].name} - {st.session_state.tasks[x].category}",
+                        key="edit_select"
+                    )
+                    
+                    if task_to_edit is not None:
+                        selected_task = st.session_state.tasks[task_to_edit]
+                        
+                        with st.form(key="edit_form"):
+                            edit_name = st.text_input("Nama Kegiatan", value=selected_task.name)
+                            edit_category = st.selectbox(
+                                "Kategori",
+                                ["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"],
+                                index=["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"].index(selected_task.category) if selected_task.category in ["Kuliah", "Tugas", "Ujian", "Pribadi", "Organisasi", "Olahraga", "Istirahat", "Makan"] else 0
+                            )
+                            
+                            edit_col1, edit_col2 = st.columns(2)
+                            with edit_col1:
+                                edit_start_date = st.date_input("Tanggal Mulai", value=selected_task.start_time.date())
+                                edit_start_time = st.time_input("Jam Mulai", value=selected_task.start_time.time())
+                            with edit_col2:
+                                edit_duration = st.number_input("Durasi (jam)", min_value=0.5, max_value=24.0, value=float(selected_task.duration), step=0.5)
+                                edit_deadline = st.date_input("Deadline", value=selected_task.deadline.date())
+                            
+                            edit_priority = st.slider("Prioritas", 1, 5, selected_task.priority)
+                            edit_is_fixed = st.checkbox("Waktu Fixed", value=selected_task.is_fixed)
+                            
+                            submit_edit = st.form_submit_button("💾 Simpan Perubahan", type="primary")
+                            
+                            if submit_edit:
+                                # Update task
+                                st.session_state.tasks[task_to_edit].name = edit_name
+                                st.session_state.tasks[task_to_edit].category = edit_category
+                                st.session_state.tasks[task_to_edit].start_time = datetime.combine(edit_start_date, edit_start_time)
+                                st.session_state.tasks[task_to_edit].duration = edit_duration
+                                st.session_state.tasks[task_to_edit].deadline = datetime.combine(edit_deadline, datetime.max.time())
+                                st.session_state.tasks[task_to_edit].priority = edit_priority
+                                st.session_state.tasks[task_to_edit].is_fixed = edit_is_fixed
+                                st.session_state.tasks[task_to_edit].end_time = st.session_state.tasks[task_to_edit].start_time + timedelta(hours=edit_duration)
+                                
+                                st.success(f"✅ Tugas '{edit_name}' berhasil diupdate!")
+                                st.rerun()
+                
+                # HAPUS TUGAS
+                with col2:
+                    st.subheader("🗑️ Hapus Tugas")
+                    task_to_delete = st.selectbox(
+                        "Pilih tugas yang akan dihapus:",
+                        options=range(len(st.session_state.tasks)),
+                        format_func=lambda x: f"{st.session_state.tasks[x].name} - {st.session_state.tasks[x].category}",
+                        key="delete_select"
+                    )
+                    
+                    st.write("")  # spacing
+                    st.write("")
+                    st.write("")
+                    
+                    if st.button("🗑️ Hapus Tugas", type="secondary", use_container_width=True):
+                        deleted_task = st.session_state.tasks.pop(task_to_delete)
+                        st.success(f"✅ Tugas '{deleted_task.name}' berhasil dihapus!")
+                        st.rerun()
         
         # TAB: Import CSV
         with tab3:
