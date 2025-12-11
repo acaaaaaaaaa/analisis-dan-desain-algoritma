@@ -98,7 +98,7 @@ class Task:
         priority: Prioritas (1-5, 5 = paling penting)
         is_fixed: Apakah waktu sudah tetap (misal: jadwal kuliah)
     """
-    def _init_(self, id, name, category, start_time, duration, deadline, priority=3, is_fixed=False):
+    def __init__(self, id, name, category, start_time, duration, deadline, priority=3, is_fixed=False):
         self.id = id
         self.name = name
         self.category = category
@@ -170,7 +170,7 @@ def brute_force_scheduling(tasks: List[Task], start_date: datetime, end_date: da
     flexible_tasks = [t for t in tasks if not t.is_fixed]
     
     if len(flexible_tasks) > 10:
-        st.warning("⚠ Brute Force tidak efisien untuk > 10 tugas flexible. Menggunakan sample.")
+        st.warning("⚠️ Brute Force tidak efisien untuk > 10 tugas flexible. Menggunakan sample.")
         flexible_tasks = flexible_tasks[:10]
     
     best_schedule = None
@@ -651,13 +651,13 @@ def get_category_emoji(category: str) -> str:
     """Return emoji yang sesuai dengan kategori"""
     emoji_map = {
         'Kuliah': '📚',
-        'Tugas': '✍',
+        'Tugas': '✍️',
         'Ujian': '📝',
         'Pribadi': '🏠',
         'Organisasi': '👥',
         'Olahraga': '⚽',
         'Istirahat': '😴',
-        'Makan': '🍽',
+        'Makan': '🍽️',
     }
     return emoji_map.get(category, '📌')
 
@@ -746,7 +746,7 @@ def main():
                 
                 # EDIT TUGAS
                 with col1:
-                    st.subheader("✏ Edit Tugas")
+                    st.subheader("✏️ Edit Tugas")
                     task_to_edit = st.selectbox(
                         "Pilih tugas yang akan diedit:",
                         options=range(len(st.session_state.tasks)),
@@ -794,7 +794,7 @@ def main():
                 
                 # HAPUS TUGAS
                 with col2:
-                    st.subheader("🗑 Hapus Tugas")
+                    st.subheader("🗑️ Hapus Tugas")
                     task_to_delete = st.selectbox(
                         "Pilih tugas yang akan dihapus:",
                         options=range(len(st.session_state.tasks)),
@@ -806,7 +806,7 @@ def main():
                     st.write("")
                     st.write("")
                     
-                    if st.button("🗑 Hapus Tugas", type="secondary", use_container_width=True):
+                    if st.button("🗑️ Hapus Tugas", type="secondary", use_container_width=True):
                         deleted_task = st.session_state.tasks.pop(task_to_delete)
                         st.success(f"✅ Tugas '{deleted_task.name}' berhasil dihapus!")
                         st.rerun()
@@ -816,15 +816,15 @@ def main():
             st.subheader("📤 Import Tugas dari CSV")
             
             st.markdown("""
-            *Format CSV yang dibutuhkan:*
+            **Format CSV yang dibutuhkan:**
             - Nama, Kategori, Tanggal Mulai (YYYY-MM-DD), Jam Mulai (HH:MM), Durasi (jam), Deadline (YYYY-MM-DD), Prioritas (1-5), Fixed (True/False)
             
-            *Contoh:*
-            
+            **Contoh:**
+            ```
             Nama,Kategori,Tanggal Mulai,Jam Mulai,Durasi,Deadline,Prioritas,Fixed
             Kuliah Kalkulus,Kuliah,2025-01-15,08:00,2,2025-01-15,4,True
             Tugas Algoritma,Tugas,2025-01-16,14:00,3,2025-01-20,5,False
-            
+            ```
             """)
             
             uploaded_file = st.file_uploader("Upload file CSV", type=['csv'])
@@ -879,7 +879,7 @@ def main():
         st.header("🤖 Generate Jadwal Otomatis")
         
         if len(st.session_state.tasks) == 0:
-            st.warning("⚠ Belum ada tugas untuk dijadwalkan. Silakan tambah tugas terlebih dahulu.")
+            st.warning("⚠️ Belum ada tugas untuk dijadwalkan. Silakan tambah tugas terlebih dahulu.")
         else:
             st.info(f"📊 Total tugas yang akan dijadwalkan: {len(st.session_state.tasks)}")
             
@@ -902,7 +902,7 @@ def main():
                 # Info algoritma
                 if "Genetic" in algorithm:
                     st.markdown("""
-                    *🧬 Genetic Algorithm:*
+                    **🧬 Genetic Algorithm:**
                     - ✅ Paling optimal untuk dataset besar
                     - ✅ Dapat handle constraint kompleks
                     - ✅ Multi-objektif optimization
@@ -911,7 +911,7 @@ def main():
                     """)
                 elif "Greedy" in algorithm:
                     st.markdown("""
-                    *⚡ Greedy EDF:*
+                    **⚡ Greedy EDF:**
                     - ✅ Cepat dan efisien
                     - ✅ Hasil cukup optimal
                     - ✅ Intuitif (deadline terdekat dulu)
@@ -920,19 +920,19 @@ def main():
                     """)
                 elif "Dynamic" in algorithm:
                     st.markdown("""
-                    *🎲 Dynamic Programming:*
+                    **🎲 Dynamic Programming:**
                     - ✅ Optimal secara matematis
                     - ✅ Weighted interval scheduling
-                    - ⚠ Lebih lambat dari Greedy
+                    - ⚠️ Lebih lambat dari Greedy
                     - ⚡ Kompleksitas: O(n²)
                     - 🎯 Cocok untuk: Optimasi maksimum value
                     """)
                 else:  # Brute Force
                     st.markdown("""
-                    *🔨 Brute Force:*
+                    **🔨 Brute Force:**
                     - ✅ Mencoba semua kemungkinan
                     - ✅ Hasil optimal (jika selesai)
-                    - ⚠ SANGAT LAMBAT untuk > 10 tugas
+                    - ⚠️ SANGAT LAMBAT untuk > 10 tugas
                     - ⚡ Kompleksitas: O(n!)
                     - 🎯 Cocok untuk: Dataset sangat kecil
                     """)
@@ -985,15 +985,15 @@ def main():
                     col2.metric("Total Jam", f"{stats['total_hours']:.1f}")
                     col3.metric("Jam Kosong", f"{stats['free_hours']:.1f}")
                     col4.metric("Konflik", stats['conflicts'], 
-                               delta=None if stats['conflicts'] == 0 else "⚠")
+                               delta=None if stats['conflicts'] == 0 else "⚠️")
                     
                     col5, col6 = st.columns(2)
                     col5.metric("✅ Tepat Waktu", stats['on_time_tasks'])
-                    col6.metric("⚠ Terlambat", stats['late_tasks'],
+                    col6.metric("⚠️ Terlambat", stats['late_tasks'],
                                delta=None if stats['late_tasks'] == 0 else "!")
                     
                     if stats['conflicts'] > 0:
-                        st.warning(f"⚠ Ditemukan {stats['conflicts']} konflik waktu. Pertimbangkan untuk menyesuaikan durasi atau deadline.")
+                        st.warning(f"⚠️ Ditemukan {stats['conflicts']} konflik waktu. Pertimbangkan untuk menyesuaikan durasi atau deadline.")
     
     # ===================================================================================
     # MENU 3: LIHAT JADWAL
@@ -1002,9 +1002,9 @@ def main():
         st.header("📊 Visualisasi Jadwal")
         
         if len(st.session_state.scheduled_tasks) == 0:
-            st.warning("⚠ Belum ada jadwal yang di-generate. Silakan generate jadwal terlebih dahulu.")
+            st.warning("⚠️ Belum ada jadwal yang di-generate. Silakan generate jadwal terlebih dahulu.")
         else:
-            st.info(f"🤖 Algoritma yang digunakan: *{st.session_state.algorithm_used}*")
+            st.info(f"🤖 Algoritma yang digunakan: **{st.session_state.algorithm_used}**")
             
             # Pilih tampilan
             view_type = st.radio(
@@ -1033,58 +1033,39 @@ def main():
                     format_func=lambda x: f"Minggu {datetime.strptime(x, '%Y-%m-%d').strftime('%d %B %Y')}"
                 )
                 
-                # Tampilkan jadwal dalam format tabel horizontal (Senin - Minggu)
+                # Tampilkan jadwal per hari
                 week_tasks = tasks_by_week[selected_week]
                 week_start = datetime.strptime(selected_week, "%Y-%m-%d")
                 
-                # Buat 7 kolom untuk 7 hari
-                days_name = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
-                cols = st.columns(7)
-                
                 for day_offset in range(7):
                     current_day = week_start + timedelta(days=day_offset)
-                    day_tasks = [t for t in week_tasks if t.start_time.date() == current_day.date()]
+                    day_name = current_day.strftime("%A, %d %B %Y")
                     
-                    with cols[day_offset]:
-                        # Header hari
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%); 
-                                    color: white; padding: 8px; border-radius: 8px 8px 0 0; 
-                                    text-align: center; font-weight: bold; margin-bottom: 0;">
-                            {days_name[day_offset]}<br>
-                            <span style="font-size: 0.9em;">{current_day.strftime('%d/%m')}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Container untuk tasks
-                        if len(day_tasks) == 0:
-                            st.markdown("""
-                            <div style="background-color: #f8f9fa; padding: 15px; 
-                                        border: 1px solid #dee2e6; border-top: none;
-                                        border-radius: 0 0 8px 8px; min-height: 200px;
-                                        text-align: center; color: #999;">
-                                <br><br>📭<br>Tidak ada kegiatan
+                    st.markdown(f"### {day_name}")
+                    
+                    day_tasks = [t for t in week_tasks 
+                                if t.start_time.date() == current_day.date()]
+                    
+                    if len(day_tasks) == 0:
+                        st.info("📭 Tidak ada kegiatan")
+                    else:
+                        for task in sorted(day_tasks, key=lambda x: x.start_time):
+                            color = get_category_color(task.category)
+                            emoji = get_category_emoji(task.category)
+                            
+                            st.markdown(f"""
+                            <div style="background-color: {color}; color: white; padding: 15px; 
+                                        border-radius: 10px; margin: 10px 0;">
+                                <h4>{emoji} {task.name}</h4>
+                                <p><b>Waktu:</b> {task.start_time.strftime('%H:%M')} - 
+                                   {task.end_time.strftime('%H:%M')} ({task.duration} jam)</p>
+                                <p><b>Kategori:</b> {task.category} | 
+                                   <b>Prioritas:</b> {'⭐' * task.priority}</p>
+                                <p><b>Deadline:</b> {task.deadline.strftime('%d %B %Y')}</p>
                             </div>
                             """, unsafe_allow_html=True)
-                        else:
-                            tasks_html = '<div style="background-color: white; padding: 8px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px; min-height: 200px;">'
-                            
-                            for task in sorted(day_tasks, key=lambda x: x.start_time):
-                                color = get_category_color(task.category)
-                                emoji = get_category_emoji(task.category)
-                                
-                                tasks_html += f"""
-                                <div style="background-color: {color}; color: white; 
-                                            padding: 6px; border-radius: 5px; margin: 5px 0;
-                                            font-size: 0.85em;">
-                                    <b>{emoji} {task.name[:20]}</b><br>
-                                    ⏰ {task.start_time.strftime('%H:%M')}-{task.end_time.strftime('%H:%M')}<br>
-                                    {'⭐' * task.priority}
-                                </div>
-                                """
-                            
-                            tasks_html += '</div>'
-                            st.markdown(tasks_html, unsafe_allow_html=True)
+                    
+                    st.markdown("---")
             
             else:  # Per Bulan
                 st.subheader("Kalender Bulanan")
@@ -1112,122 +1093,51 @@ def main():
                 # Buat kalender
                 cal = calendar.monthcalendar(year, month)
                 
-                st.markdown(f"""
-                <div style="text-align: center; background: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%);
-                            color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-                    <h2 style="margin: 0;">{calendar.month_name[month]} {year}</h2>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"### {calendar.month_name[month]} {year}")
                 
-                # CSS untuk kalender yang lebih rapi dan efisien
-                st.markdown("""
-                <style>
-                    .cal-header {
-                        background: #FF8C00;
-                        color: white;
-                        padding: 10px;
-                        text-align: center;
-                        font-weight: bold;
-                        border: 1px solid #ddd;
-                        font-size: 0.9em;
-                    }
-                    .cal-day {
-                        background: white;
-                        border: 1px solid #ddd;
-                        padding: 8px;
-                        min-height: 100px;
-                        max-height: 120px;
-                        overflow-y: auto;
-                        font-size: 0.8em;
-                    }
-                    .cal-day-empty {
-                        background: #f5f5f5;
-                        border: 1px solid #ddd;
-                        min-height: 100px;
-                    }
-                    .cal-day-number {
-                        font-weight: bold;
-                        font-size: 1.1em;
-                        color: #333;
-                        margin-bottom: 5px;
-                    }
-                    .cal-task {
-                        background: #FFE4B5;
-                        padding: 3px 5px;
-                        border-radius: 3px;
-                        margin: 2px 0;
-                        font-size: 0.75em;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-                    .cal-task-more {
-                        color: #FF6347;
-                        font-weight: bold;
-                        font-size: 0.7em;
-                    }
-                </style>
-                """, unsafe_allow_html=True)
+                # Header hari
+                cols = st.columns(7)
+                days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+                for i, day in enumerate(days):
+                    cols[i].markdown(f"**{day}**")
                 
-                # Header hari dalam HTML table
-                days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-                
-                calendar_html = '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">'
-                
-                # Header row
-                calendar_html += '<tr>'
-                for day in days:
-                    calendar_html += f'<td class="cal-header">{day}</td>'
-                calendar_html += '</tr>'
-                
-                # Calendar weeks
+                # Isi kalender
                 for week in cal:
-                    calendar_html += '<tr>'
-                    for day in week:
+                    cols = st.columns(7)
+                    for i, day in enumerate(week):
                         if day == 0:
-                            calendar_html += '<td class="cal-day-empty"></td>'
+                            cols[i].markdown("")
                         else:
                             current_date = datetime(year, month, day).date()
-                            day_tasks = [t for t in month_tasks if t.start_time.date() == current_date]
+                            day_tasks = [t for t in month_tasks 
+                                        if t.start_time.date() == current_date]
                             
-                            calendar_html += '<td class="cal-day">'
-                            calendar_html += f'<div class="cal-day-number">{day}</div>'
-                            
-                            # Tampilkan max 3 tasks
-                            for i, task in enumerate(day_tasks[:3]):
-                                emoji = get_category_emoji(task.category)
-                                short_name = task.name[:12] + '...' if len(task.name) > 12 else task.name
-                                calendar_html += f'<div class="cal-task">{emoji} {short_name}</div>'
-                            
-                            if len(day_tasks) > 3:
-                                calendar_html += f'<div class="cal-task-more">+{len(day_tasks)-3} lagi</div>'
-                            
-                            calendar_html += '</td>'
-                    
-                    calendar_html += '</tr>'
-                
-                calendar_html += '</table>'
-                
-                st.markdown(calendar_html, unsafe_allow_html=True)
-                
-                # Legend kategori
-                st.markdown("---")
-                st.markdown("### 🎨 Legend Kategori:")
-                
-                categories = list(set([t.category for t in month_tasks]))
-                legend_cols = st.columns(min(4, len(categories)))
-                
-                for i, cat in enumerate(categories):
-                    with legend_cols[i % 4]:
-                        color = get_category_color(cat)
-                        emoji = get_category_emoji(cat)
-                        st.markdown(f"""
-                        <div style="display: inline-block; background-color: {color}; 
-                                    color: white; padding: 5px 12px; border-radius: 5px;
-                                    margin: 3px; font-size: 0.85em;">
-                            {emoji} {cat}
-                        </div>
-                        """, unsafe_allow_html=True)
+                            if len(day_tasks) == 0:
+                                cols[i].markdown(f"""
+                                <div style="background-color: #f0f0f0; padding: 10px; 
+                                            border-radius: 5px; min-height: 100px;">
+                                    <b>{day}</b><br>
+                                    <small style="color: #999;">Kosong</small>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                tasks_html = ""
+                                for task in day_tasks[:3]:  # Max 3 tugas ditampilkan
+                                    emoji = get_category_emoji(task.category)
+                                    tasks_html += f"""
+                                    <small>{emoji} {task.name[:15]}...</small><br>
+                                    """
+                                
+                                if len(day_tasks) > 3:
+                                    tasks_html += f"<small>+{len(day_tasks)-3} lainnya</small>"
+                                
+                                cols[i].markdown(f"""
+                                <div style="background-color: #FFE4B5; padding: 10px; 
+                                            border-radius: 5px; min-height: 100px;">
+                                    <b>{day}</b><br>
+                                    {tasks_html}
+                                </div>
+                                """, unsafe_allow_html=True)
     
     # ===================================================================================
     # MENU 4: EXPORT & NOTIFIKASI
@@ -1236,7 +1146,7 @@ def main():
         st.header("📥 Export Jadwal & Notifikasi")
         
         if len(st.session_state.scheduled_tasks) == 0:
-            st.warning("⚠ Belum ada jadwal yang di-generate.")
+            st.warning("⚠️ Belum ada jadwal yang di-generate.")
         else:
             # Export options
             st.subheader("💾 Export Jadwal")
@@ -1270,7 +1180,7 @@ def main():
             if len(upcoming) == 0:
                 st.success("✅ Tidak ada deadline mendekat dalam waktu dekat!")
             else:
-                st.warning(f"⚠ Ada {len(upcoming)} tugas dengan deadline mendekat!")
+                st.warning(f"⚠️ Ada {len(upcoming)} tugas dengan deadline mendekat!")
                 
                 for task in sorted(upcoming, key=lambda x: x.deadline):
                     days_left = (task.deadline - datetime.now()).days
@@ -1290,7 +1200,7 @@ def main():
             st.markdown("---")
             
             # Kegiatan selanjutnya
-            st.subheader("⏭ Kegiatan Selanjutnya")
+            st.subheader("⏭️ Kegiatan Selanjutnya")
             
             now = datetime.now()
             next_tasks = [t for t in st.session_state.scheduled_tasks if t.start_time > now]
@@ -1325,9 +1235,9 @@ def main():
                     for i, task in enumerate(next_tasks[1:4], 1):
                         emoji = get_category_emoji(task.category)
                         st.markdown(f"""
-                        *{i}. {emoji} {task.name}*  
+                        **{i}. {emoji} {task.name}**  
                         📅 {task.start_time.strftime('%d %B %Y, %H:%M')} | 
-                        ⏱ {task.duration} jam | 
+                        ⏱️ {task.duration} jam | 
                         {'⭐' * task.priority}
                         """)
     
@@ -1336,7 +1246,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #888; padding: 20px;">
         <p>📚 Aplikasi Penjadwalan Mahasiswa v1.0</p>
-        <p>Dibuat dengan ❤ menggunakan Streamlit & Color Psychology</p>
+        <p>Dibuat dengan ❤️ menggunakan Streamlit & Color Psychology</p>
         <p><small>💡 Tips: Generate ulang jadwal dengan algoritma berbeda untuk hasil optimal!</small></p>
     </div>
     """, unsafe_allow_html=True)
@@ -1344,5 +1254,5 @@ def main():
 # ===================================================================================
 # RUN APPLICATION
 # ===================================================================================
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()
